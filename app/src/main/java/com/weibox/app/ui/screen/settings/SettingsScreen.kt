@@ -22,6 +22,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.weibox.app.R
+import com.weibox.app.data.prefs.ThemeMode
 import com.weibox.app.ui.components.WeiboTopBar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -122,17 +123,25 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
 
             // ── 外观 ──────────────────────────────────────────────
             SectionTitle("外观")
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.DarkMode, contentDescription = null)
-                    Spacer(Modifier.width(12.dp))
-                    Text("深色模式", style = MaterialTheme.typography.bodyLarge)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.DarkMode, contentDescription = null)
+                Spacer(Modifier.width(12.dp))
+                Text("主题", style = MaterialTheme.typography.bodyLarge)
+            }
+            Spacer(Modifier.height(8.dp))
+            val themeOptions = listOf(
+                ThemeMode.SYSTEM to "跟随系统",
+                ThemeMode.LIGHT  to "浅色",
+                ThemeMode.DARK   to "深色"
+            )
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                themeOptions.forEachIndexed { index, (mode, label) ->
+                    SegmentedButton(
+                        selected = state.themeMode == mode,
+                        onClick = { vm.setThemeMode(mode) },
+                        shape = SegmentedButtonDefaults.itemShape(index, themeOptions.size)
+                    ) { Text(label) }
                 }
-                Switch(checked = state.darkMode, onCheckedChange = { vm.toggleDarkMode() })
             }
 
             HorizontalDivider()

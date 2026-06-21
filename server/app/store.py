@@ -18,8 +18,12 @@ DEFAULTS = {
     "req_delay_max_sec": "60",          # 单个用户请求之间的最大延迟（秒）
     "posts_per_user": "20",             # 每用户每轮抓取的微博条数
     "min_check_interval_sec": "300",    # 该用户多久内抓过则跳过（秒）
-    "post_retention_days": "30",        # 微博保留天数（0 = 不按时间清理）
+    "post_retention_days": "30",        # 微博保留天数（0 = 不按时间清理，热门流共用此项）
     "max_cached_posts": "5000",         # 微博缓存条数上限（0 = 不限）
+    "hot_enabled": "true",              # 热门流定时抓取开关
+    "hot_count": "30",                  # 每轮抓取的热门微博条数
+    "max_cached_hot": "200",            # 热门流缓存条数上限（0 = 不限）
+    "hot_containerid": "102803",        # 热门流容器 ID（m.weibo.cn/hot 默认 102803）
     "webdav_url": "",
     "webdav_user": "",
     "webdav_pass": "",

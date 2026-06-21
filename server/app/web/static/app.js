@@ -43,6 +43,7 @@ document.querySelectorAll(".tab").forEach((tab) => {
     document.querySelectorAll(".tab-panel").forEach((p) => p.classList.add("hidden"));
     $("tab-" + name).classList.remove("hidden");
     if (name === "timeline") loadTimeline();
+    if (name === "hot") loadHot();
     if (name === "following") loadFollowing();
   });
 });
@@ -125,6 +126,12 @@ async function loadTimeline() {
   $("timeline-list").innerHTML = '<div class="muted">加载中…</div>';
   try { const data = await api("/api/v1/timeline?limit=50"); renderPosts($("timeline-list"), data.posts); }
   catch (err) { $("timeline-list").innerHTML = `<div class="error">${esc(err.message)}</div>`; }
+}
+$("reload-hot").addEventListener("click", loadHot);
+async function loadHot() {
+  $("hot-list").innerHTML = '<div class="muted">加载中…</div>';
+  try { const data = await api("/api/v1/hot?limit=50"); renderPosts($("hot-list"), data.posts); }
+  catch (err) { $("hot-list").innerHTML = `<div class="error">${esc(err.message)}</div>`; }
 }
 function postInnerHtml(p, isRetweet) {
   const pics = (p.pics || []).map((u) => `<img src="${esc(img(u))}" loading="lazy"/>`).join("");
@@ -254,12 +261,14 @@ async function loadProfileTab(which) {
 // ── 设置 ────────────────────────────────────────────────────────
 const SETTING_FIELDS = ["cookie", "round_interval_sec", "req_delay_min_sec", "req_delay_max_sec",
   "posts_per_user", "min_check_interval_sec", "post_retention_days", "max_cached_posts",
+  "hot_count", "max_cached_hot", "hot_containerid",
   "webdav_url", "webdav_user", "webdav_pass"];
 async function loadSettings() {
   try {
     const s = await api("/admin/api/settings");
     SETTING_FIELDS.forEach((k) => { const el = $("set-" + k); if (el) el.value = s[k] || ""; });
     $("set-scrape_enabled").checked = (s.scrape_enabled || "").toString() === "true";
+    $("set-hot_enabled").checked = (s.hot_enabled || "").toString() === "true";
   } catch {}
 }
 $("settings-form").addEventListener("submit", async (e) => {
@@ -267,6 +276,7 @@ $("settings-form").addEventListener("submit", async (e) => {
   const payload = {};
   SETTING_FIELDS.forEach((k) => { const el = $("set-" + k); if (el) payload[k] = el.value; });
   payload.scrape_enabled = $("set-scrape_enabled").checked ? "true" : "false";
+  payload.hot_enabled = $("set-hot_enabled").checked ? "true" : "false";
   try {
     await api("/admin/api/settings", { method: "POST", body: JSON.stringify(payload) });
     $("settings-msg").textContent = "已保存 ✓"; setTimeout(() => ($("settings-msg").textContent = ""), 2000);

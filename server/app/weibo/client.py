@@ -156,6 +156,22 @@ class WeiboClient:
             return []
         return parser.parse_posts(data)
 
+    async def get_hot_posts(self, containerid: str = "102803",
+                            page: int = 1, count: int = 30) -> List[dict]:
+        url = (
+            f"https://m.weibo.cn/api/container/getIndex"
+            f"?containerid={containerid}&page={page}&count={count}"
+        )
+        data = await self._get_json(url)
+        if data.get("ok") != 1:
+            url_field = data.get("url", "") or ""
+            if "captcha" in url_field:
+                raise CaptchaRequired(url_field)
+            if data.get("ok") == -100 or "passport.weibo" in url_field or "signin" in url_field:
+                raise SessionInvalid("会话失效（ok=-100），请配置有效 Cookie 或启用访客 session")
+            return []
+        return parser.parse_hot_posts(data)
+
     async def get_following_list(self, user_id: str, page: int = 2) -> List[dict]:
         url = (
             f"https://m.weibo.cn/api/container/getIndex"

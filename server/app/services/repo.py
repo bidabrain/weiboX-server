@@ -8,7 +8,7 @@ from typing import List, Optional
 from sqlalchemy import delete, func, select
 
 from ..db import get_session
-from ..models import FollowedUser, Post
+from ..models import FollowedUser, HotPost, Post
 
 
 def now_ms() -> int:
@@ -219,4 +219,98 @@ def trim_posts(retention_days: int, max_posts: int) -> None:
                 ).scalars().all()
                 if old_ids:
                     s.execute(delete(Post).where(Post.id.in_(old_ids)))
+                    s.commit()
+
+
+# ── 热门流（与 Post 分表）──────────────────────────────────────────
+def hot_to_dict(p: HotPost) -> dict:
+    return {
+        "id": p.id,
+        "user_id": p.user_id,
+        "user_name": p.user_name,
+        "user_avatar": p.user_avatar,
+        "text": p.text,
+        "pics": json.loads(p.pics_json or "[]"),
+        "created_at": p.created_at,
+        "created_at_ts": p.created_at_ts,
+        "likes_count": p.likes_count,
+        "comments_count": p.comments_count,
+        "reposts_count": p.reposts_count,
+        "source": p.source,
+        "is_retweet": p.is_retweet,
+        "retweet": json.loads(p.retweet_json) if p.retweet_json else None,
+    }
+
+
+def save_hot_posts(posts: List[dict]) -> None:
+    """按 posts 的顺序写入热门流；rank=出现次序，整批共用同一 fetched_at。
+
+    这样 (fetched_at DESC, rank ASC) 排序即「最近一轮的热门帖按热度顺序在前」。
+    """
+    if not posts:
+        return
+    ts = now_ms()
+    with get_session() as s:
+        for rank, p in enumerate(posts):
+            if not p.get("id"):
+                continue
+            payload = dict(
+                user_id=p.get("user_id", ""),
+                user_name=p.get("user_name", ""),
+                user_avatar=p.get("user_avatar", ""),
+                text=p.get("text", ""),
+                pics_json=json.dumps(p.get("pics", []), ensure_ascii=False),
+                created_at=p.get("created_at", ""),
+                created_at_ts=p.get("created_at_ts", 0),
+                likes_count=p.get("likes_count", 0),
+                comments_count=p.get("comments_count", 0),
+                reposts_count=p.get("reposts_count", 0),
+                source=p.get("source", ""),
+                is_retweet=p.get("is_retweet", False),
+                retweet_json=json.dumps(p["retweet"], ensure_ascii=False) if p.get("retweet") else "",
+                rank=rank,
+                fetched_at=ts,
+            )
+            row = s.get(HotPost, p["id"])
+            if row:
+                for k, v in payload.items():
+                    setattr(row, k, v)
+            else:
+                s.add(HotPost(id=p["id"], **payload))
+        s.commit()
+
+
+def get_hot_feed(limit: int = 50, offset: int = 0) -> List[dict]:
+    with get_session() as s:
+        rows = s.execute(
+            select(HotPost)
+            .order_by(HotPost.fetched_at.desc(), HotPost.rank.asc())
+            .limit(limit).offset(offset)
+        ).scalars().all()
+        return [hot_to_dict(p) for p in rows]
+
+
+def hot_count() -> int:
+    with get_session() as s:
+        return s.execute(select(func.count(HotPost.id))).scalar() or 0
+
+
+def trim_hot_posts(retention_days: int, max_hot: int) -> None:
+    with get_session() as s:
+        if retention_days > 0:
+            cutoff = now_ms() - retention_days * 24 * 3600 * 1000
+            s.execute(delete(HotPost).where(HotPost.created_at_ts < cutoff, HotPost.created_at_ts > 0))
+            s.commit()
+        if max_hot > 0:
+            count = s.execute(select(func.count(HotPost.id))).scalar() or 0
+            if count > max_hot:
+                excess = count - max_hot
+                # 删最旧一轮、且热度最靠后的（fetched_at 小、rank 大优先删）
+                old_ids = s.execute(
+                    select(HotPost.id)
+                    .order_by(HotPost.fetched_at.asc(), HotPost.rank.desc())
+                    .limit(excess)
+                ).scalars().all()
+                if old_ids:
+                    s.execute(delete(HotPost).where(HotPost.id.in_(old_ids)))
                     s.commit()

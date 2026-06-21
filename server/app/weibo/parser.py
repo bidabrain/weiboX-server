@@ -108,6 +108,37 @@ def parse_posts(data: dict) -> List[dict]:
     return posts
 
 
+def parse_hot_posts(data: dict) -> List[dict]:
+    """getIndex(102803 等热门容器) → 微博列表，保留返回顺序（即热度顺序）。
+
+    热门流的帖子可能直接是 card_type==9，也可能嵌在 card_type==11 的
+    card_group 里，这里两种都展开。按出现顺序去重。
+    """
+    cards = (data.get("data") or {}).get("cards") or []
+    posts = []
+    seen = set()
+
+    def _take(card: dict) -> None:
+        mblog = card.get("mblog")
+        if not mblog:
+            return
+        try:
+            p = parse_post(mblog)
+        except Exception:
+            return
+        if p["id"] and p["id"] not in seen:
+            seen.add(p["id"])
+            posts.append(p)
+
+    for card in cards:
+        if card.get("card_type") == 9:
+            _take(card)
+        for item in card.get("card_group") or []:
+            if item.get("card_type") == 9:
+                _take(item)
+    return posts
+
+
 def parse_following_list(data: dict) -> List[dict]:
     """getIndex(231051_-_followers_-_{uid}) → 关注的人列表。"""
     if data.get("ok") != 1:

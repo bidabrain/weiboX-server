@@ -10,11 +10,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.weibox.app.data.prefs.AppPreferences
+import com.weibox.app.data.prefs.ThemeMode
 import com.weibox.app.data.repository.WeiboRepository
 import com.weibox.app.fcm.FcmRegistrar
 import com.weibox.app.navigation.AppNavGraph
@@ -64,8 +66,13 @@ class MainActivity : ComponentActivity() {
         })
 
         setContent {
-            val darkMode by prefs.darkMode.collectAsState(initial = false)
-            WeiboXTheme(darkTheme = darkMode) {
+            val themeMode by prefs.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
+            val darkTheme = when (themeMode) {
+                ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                ThemeMode.LIGHT  -> false
+                ThemeMode.DARK   -> true
+            }
+            WeiboXTheme(darkTheme = darkTheme) {
                 AppNavGraph()
             }
         }

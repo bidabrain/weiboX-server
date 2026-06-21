@@ -38,6 +38,7 @@ class ScraperStatus:
         self.progress_done = 0
         self.progress_total = 0
         self.last_round_new_posts = 0
+        self.last_round_new_hot = 0
 
     def snapshot(self) -> dict:
         return {
@@ -51,9 +52,11 @@ class ScraperStatus:
             "progress_done": self.progress_done,
             "progress_total": self.progress_total,
             "last_round_new_posts": self.last_round_new_posts,
+            "last_round_new_hot": self.last_round_new_hot,
             "captcha_pending": captcha_manager.pending,
             "captcha_url": captcha_manager.captcha_url,
             "total_posts": repo.post_count(),
+            "total_hot": repo.hot_count(),
         }
 
 
@@ -143,8 +146,10 @@ class Scraper:
         self.status.progress_total = len(candidates)
         self.status.progress_done = 0
         self.status.last_round_new_posts = 0
+        self.status.last_round_new_hot = 0
 
-        if not candidates:
+        hot_enabled = store.get_bool("hot_enabled")
+        if not candidates and not hot_enabled:
             self.status.round_running = False
             self.status.last_round_finished = int(time.time() * 1000)
             return
@@ -183,12 +188,26 @@ class Scraper:
                     repo.backfill_profile(uid, posts[0].get("user_name", ""), posts[0].get("user_avatar", ""))
                 repo.update_last_fetched(uid, int(time.time() * 1000))
                 self.status.progress_done = index + 1
+
+            # 热门流：和关注列表同轮抓取，存入独立的 hot_posts 表
+            if hot_enabled and not self._stop:
+                if candidates:
+                    await asyncio.sleep(random.uniform(delay_min, delay_max))
+                self.status.current_user = "热门流"
+                hot = await self._fetch_hot(client)
+                if hot is RETRY_SESSION:
+                    await client.aclose()
+                    cookie, is_visitor = await self._effective_cookie(force_visitor=True)
+                    client = WeiboClient(cookie)
+                    hot = await self._fetch_hot(client)
+                if isinstance(hot, list) and hot:
+                    repo.save_hot_posts(hot)
+                    self.status.last_round_new_hot = len(hot)
         finally:
             await client.aclose()
-            repo.trim_posts(
-                store.get_int("post_retention_days"),
-                store.get_int("max_cached_posts"),
-            )
+            retention = store.get_int("post_retention_days")
+            repo.trim_posts(retention, store.get_int("max_cached_posts"))
+            repo.trim_hot_posts(retention, store.get_int("max_cached_hot"))
             self.status.last_round_new_posts = new_total
             self.status.current_user = ""
             self.status.round_running = False
@@ -228,6 +247,24 @@ class Scraper:
                 return []
         except WeiboError as e:
             self.status.last_error = str(e)
+            return []
+
+    async def _fetch_hot(self, client: WeiboClient):
+        """抓热门流。返回 posts 列表 / RETRY_SESSION（需刷新会话）/ [] （其他失败时跳过，不影响本轮）。
+
+        热门为次要内容：命中验证码时直接跳过本轮热门，不打断已抓到的关注数据。
+        """
+        containerid = store.get("hot_containerid").strip() or "102803"
+        count = max(1, store.get_int("hot_count"))
+        try:
+            return await client.get_hot_posts(containerid=containerid, count=count)
+        except SessionInvalid:
+            return RETRY_SESSION
+        except CaptchaRequired:
+            self.status.last_error = "热门流命中验证码，本轮跳过"
+            return []
+        except WeiboError as e:
+            self.status.last_error = f"热门流抓取失败：{e}"
             return []
 
 

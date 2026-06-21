@@ -23,7 +23,9 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.isSystemInDarkTheme
 import com.weibox.app.data.prefs.AppPreferences
+import com.weibox.app.data.prefs.ThemeMode
 import com.weibox.app.ui.theme.WeiboXTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,7 +47,12 @@ class CaptchaActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            val dark = prefs.darkMode.collectAsState(initial = false).value
+            val themeMode = prefs.themeMode.collectAsState(initial = ThemeMode.SYSTEM).value
+            val dark = when (themeMode) {
+                ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                ThemeMode.LIGHT  -> false
+                ThemeMode.DARK   -> true
+            }
             WeiboXTheme(darkTheme = dark) {
                 CaptchaScreen(prefs = prefs, onClose = { finish() })
             }

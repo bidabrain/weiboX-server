@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 系统处于深色模式时使用深色平台主题，避免启动时窗口背景闪白。 -->
+    <style name="Theme.WeiboX" parent="android:Theme.Material.NoActionBar" />
+</resources>

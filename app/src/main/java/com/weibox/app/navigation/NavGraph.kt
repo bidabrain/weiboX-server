@@ -6,6 +6,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -22,18 +23,20 @@ import androidx.navigation.navArgument
 import com.weibox.app.ui.screen.following.FollowingScreen
 import com.weibox.app.ui.screen.followinglist.FollowingListScreen
 import com.weibox.app.ui.screen.home.HomeScreen
+import com.weibox.app.ui.screen.hot.HotScreen
 import com.weibox.app.ui.screen.profile.ProfileScreen
 import com.weibox.app.ui.screen.search.SearchScreen
 import com.weibox.app.ui.screen.settings.SettingsScreen
 
 private sealed class Tab(val route: String, val label: String, val icon: ImageVector) {
     object Home      : Tab("home",      "时间线",   Icons.Filled.Home)
+    object Hot       : Tab("hot",       "热门",     Icons.Filled.Whatshot)
     object Search    : Tab("search",    "内容发现", Icons.Filled.Search)
     object Following : Tab("following", "关注",     Icons.Filled.People)
     object Settings  : Tab("settings",  "设置",     Icons.Filled.Settings)
 }
 
-private val tabs = listOf(Tab.Home, Tab.Search, Tab.Following, Tab.Settings)
+private val tabs = listOf(Tab.Home, Tab.Hot, Tab.Search, Tab.Following, Tab.Settings)
 
 @Composable
 fun AppNavGraph() {
@@ -43,6 +46,7 @@ fun AppNavGraph() {
     val showBottomBar = tabs.any { it.route == currentDest?.route }
 
     var homeScrollToTopTrigger by remember { mutableIntStateOf(0) }
+    var hotScrollToTopTrigger by remember { mutableIntStateOf(0) }
 
     Scaffold(
         bottomBar = {
@@ -58,6 +62,8 @@ fun AppNavGraph() {
                             onClick = {
                                 if (selected && tab is Tab.Home) {
                                     homeScrollToTopTrigger++
+                                } else if (selected && tab is Tab.Hot) {
+                                    hotScrollToTopTrigger++
                                 } else {
                                     navController.navigate(tab.route) {
                                         popUpTo(navController.graph.findStartDestination().id) {
@@ -92,6 +98,12 @@ fun AppNavGraph() {
                 HomeScreen(
                     onNavigateToProfile = { uid -> navController.navigate("profile/$uid") },
                     scrollToTopTrigger = homeScrollToTopTrigger
+                )
+            }
+            composable(Tab.Hot.route) {
+                HotScreen(
+                    onNavigateToProfile = { uid -> navController.navigate("profile/$uid") },
+                    scrollToTopTrigger = hotScrollToTopTrigger
                 )
             }
             composable(Tab.Search.route) {

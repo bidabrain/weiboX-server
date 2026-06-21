@@ -89,7 +89,9 @@ def delete_token(tid: str):
 SAFE_KEYS = {
     "cookie", "scrape_enabled", "round_interval_sec", "req_delay_min_sec",
     "req_delay_max_sec", "posts_per_user", "min_check_interval_sec",
-    "post_retention_days", "max_cached_posts", "webdav_url", "webdav_user", "webdav_pass",
+    "post_retention_days", "max_cached_posts",
+    "hot_enabled", "hot_count", "max_cached_hot", "hot_containerid",
+    "webdav_url", "webdav_user", "webdav_pass",
 }
 
 

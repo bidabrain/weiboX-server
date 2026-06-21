@@ -52,6 +52,33 @@ class Post(Base):
     fetched_at: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class HotPost(Base):
+    """微博热门流（containerid=102803）缓存。
+
+    列与 Post 对齐，额外加 rank 记录每轮抓取时微博返回的热度顺序，
+    按 (fetched_at DESC, rank ASC) 排序即「最近一轮的热门帖按热度顺序在前」。
+    与 Post 分表，避免污染关注时间线（同一帖子 id 可能两边都有）。
+    """
+    __tablename__ = "hot_posts"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String, index=True, default="")
+    user_name: Mapped[str] = mapped_column(String, default="")
+    user_avatar: Mapped[str] = mapped_column(String, default="")
+    text: Mapped[str] = mapped_column(Text, default="")
+    pics_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[str] = mapped_column(String, default="")
+    created_at_ts: Mapped[int] = mapped_column(Integer, index=True, default=0)
+    likes_count: Mapped[int] = mapped_column(Integer, default=0)
+    comments_count: Mapped[int] = mapped_column(Integer, default=0)
+    reposts_count: Mapped[int] = mapped_column(Integer, default=0)
+    source: Mapped[str] = mapped_column(String, default="")
+    is_retweet: Mapped[bool] = mapped_column(Boolean, default=False)
+    retweet_json: Mapped[str] = mapped_column(Text, default="")
+    rank: Mapped[int] = mapped_column(Integer, default=0)        # 本轮热度顺序（越小越靠前）
+    fetched_at: Mapped[int] = mapped_column(Integer, index=True, default=0)
+
+
 class Setting(Base):
     __tablename__ = "settings"
 

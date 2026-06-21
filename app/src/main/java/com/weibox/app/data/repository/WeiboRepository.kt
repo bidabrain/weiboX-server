@@ -93,6 +93,15 @@ class WeiboRepository @Inject constructor(
     suspend fun refreshUserPosts(userId: String, page: Int = 1): List<WeiboPost> =
         api().getUserPosts(userId, page)
 
+    // ── 热门流（直接读 server 缓存，不落 Room）────────────────────
+    /** 首屏：拉最新一页热门。 */
+    suspend fun refreshHot(): List<WeiboPost> =
+        api().getHot(limit = PAGE_SIZE, offset = 0)
+
+    /** 下拉加载：继续从 server 缓存翻页。 */
+    suspend fun loadMoreHot(page: Int): List<WeiboPost> =
+        api().getHot(limit = PAGE_SIZE, offset = (page - 1) * PAGE_SIZE)
+
     private suspend fun trimCache() {
         db.postDao().deleteOlderThan(System.currentTimeMillis() - 7 * 24 * 3600 * 1000L)
         val count = db.postDao().count()

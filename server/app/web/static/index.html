@@ -25,6 +25,7 @@
       <nav class="tabs">
         <button class="tab active" data-tab="dashboard">状态</button>
         <button class="tab" data-tab="timeline">时间线</button>
+        <button class="tab" data-tab="hot">热门</button>
         <button class="tab" data-tab="following">关注管理</button>
         <button class="tab" data-tab="settings">设置</button>
       </nav>
@@ -60,6 +61,7 @@
           <p class="muted">第三方客户端用 Bearer Token 调用。Token 见服务器 <code>data/api_token.txt</code>。</p>
           <ul class="api-list">
             <li><code>GET /api/v1/timeline?limit=50&amp;offset=0</code> — 聚合时间线</li>
+            <li><code>GET /api/v1/hot?limit=50&amp;offset=0</code> — 热门流</li>
             <li><code>GET /api/v1/users</code> — 关注列表</li>
             <li><code>GET /api/v1/users/{uid}/posts</code> — 某用户微博</li>
             <li><code>GET /api/v1/status</code> — 抓取状态</li>
@@ -71,6 +73,12 @@
       <section id="tab-timeline" class="tab-panel hidden">
         <div class="row"><button id="reload-timeline">刷新</button></div>
         <div id="timeline-list" class="feed"></div>
+      </section>
+
+      <!-- 热门 -->
+      <section id="tab-hot" class="tab-panel hidden">
+        <div class="row"><button id="reload-hot">刷新</button></div>
+        <div id="hot-list" class="feed"></div>
       </section>
 
       <!-- 关注管理 -->
@@ -116,6 +124,14 @@
             <label>跳过间隔（秒）<input type="number" id="set-min_check_interval_sec" min="0" /></label>
             <label>微博保留天数 <input type="number" id="set-post_retention_days" min="0" /></label>
             <label>缓存上限（条）<input type="number" id="set-max_cached_posts" min="0" /></label>
+          </div>
+          <div class="card">
+            <h3>热门流</h3>
+            <p class="muted">和关注列表同轮抓取，存入独立缓存（保留天数沿用上面的「微博保留天数」）。</p>
+            <label>抓取热门 <input type="checkbox" id="set-hot_enabled" /></label>
+            <label>每轮抓取条数 <input type="number" id="set-hot_count" min="1" /></label>
+            <label>缓存上限（条）<input type="number" id="set-max_cached_hot" min="0" /></label>
+            <label>容器 ID <input type="text" id="set-hot_containerid" placeholder="102803" /></label>
           </div>
           <div class="card">
             <h3>WebDAV 备份</h3>

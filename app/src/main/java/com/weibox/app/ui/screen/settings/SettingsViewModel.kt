@@ -12,6 +12,7 @@ import androidx.lifecycle.viewModelScope
 import com.weibox.app.R
 import com.weibox.app.data.api.ServerApi
 import com.weibox.app.data.prefs.AppPreferences
+import com.weibox.app.data.prefs.ThemeMode
 import com.weibox.app.data.repository.WeiboRepository
 import com.weibox.app.fcm.FcmRegistrar
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -32,7 +33,7 @@ data class SettingsUiState(
     val saved: Boolean = false,
     val testing: Boolean = false,
     val connectionMessage: String? = null,
-    val darkMode: Boolean = false,
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val donateMessage: String? = null
 )
 
@@ -49,7 +50,7 @@ class SettingsViewModel @Inject constructor(
     init {
         prefs.serverUrl.onEach { v -> _state.update { it.copy(serverUrl = v, serverUrlInput = v) } }.launchIn(viewModelScope)
         prefs.apiToken.onEach { v -> _state.update { it.copy(apiToken = v, apiTokenInput = v) } }.launchIn(viewModelScope)
-        prefs.darkMode.onEach { d -> _state.update { it.copy(darkMode = d) } }.launchIn(viewModelScope)
+        prefs.themeMode.onEach { m -> _state.update { it.copy(themeMode = m) } }.launchIn(viewModelScope)
     }
 
     // ── 服务器配置 ───────────────────────────────────────────────
@@ -83,7 +84,7 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun toggleDarkMode() = viewModelScope.launch { prefs.setDarkMode(!_state.value.darkMode) }
+    fun setThemeMode(mode: ThemeMode) = viewModelScope.launch { prefs.setThemeMode(mode) }
 
     // ── 支持开发者 ────────────────────────────────────────────────
     fun savePayQrCode() = viewModelScope.launch(Dispatchers.IO) {

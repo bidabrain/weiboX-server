@@ -86,6 +86,11 @@ class ServerApi(baseUrl: String, private val token: String) {
         parsePosts(getObject("/timeline", mapOf("limit" to "$limit", "offset" to "$offset")))
     }
 
+    // ── 热门流（缓存）─────────────────────────────────────────────
+    suspend fun getHot(limit: Int, offset: Int): List<WeiboPost> = withContext(Dispatchers.IO) {
+        parsePosts(getObject("/hot", mapOf("limit" to "$limit", "offset" to "$offset")))
+    }
+
     // ── 用户主页 / 微博 / 关注列表（实时）─────────────────────────
     suspend fun getUserInfo(userId: String): WeiboUser = withContext(Dispatchers.IO) {
         parseUser(getObject("/users/$userId"))
