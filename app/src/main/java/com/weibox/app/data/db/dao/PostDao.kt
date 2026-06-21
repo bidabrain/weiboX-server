@@ -12,6 +12,13 @@ interface PostDao {
     @Query("SELECT * FROM cached_posts ORDER BY createdAtTimestamp DESC")
     fun getTimeline(): Flow<List<PostEntity>>
 
+    @Query("""
+        SELECT * FROM cached_posts
+        WHERE userId IN (SELECT id FROM followed_users WHERE special = 1)
+        ORDER BY createdAtTimestamp DESC
+    """)
+    fun getSpecialTimeline(): Flow<List<PostEntity>>
+
     @Query("SELECT * FROM cached_posts WHERE userId = :userId ORDER BY createdAtTimestamp DESC")
     fun getByUser(userId: String): Flow<List<PostEntity>>
 

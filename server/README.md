@@ -6,16 +6,18 @@ WeiboX 安卓客户端的**服务器版本**：长期运行、定时抓取关注
 
 - 不分前后台，**遍历全部关注用户**定时抓取，抓取间隔可调长以防反爬；
 - 抓到的微博持久化在服务器，客户端通过 API 拉取，无需自己抓；
-- WebDAV 备份格式与 app **完全兼容**（仅备份关注列表 + Cookie）。
+- WebDAV 备份格式与 app **完全兼容**（备份关注列表 + Cookie + 特别关注标记）。
 
 ## 功能
 
 - **定时全量抓取**：按「逾期率」给关注用户排优先级，请求间隔随机（默认 30~60s，可配）。
+- **热门流**：与关注用户同轮定时抓取微博热门流（`containerid=102803`，可配），存入独立缓存、保留微博热度顺序，经 `/api/v1/hot` 提供。
+- **特别关注**：把任意（关注的）用户标记为特别关注——独立的特别关注时间线，且该用户发新微博、被抓到时 **FCM 推送**通知到 app（每人每轮聚合一条，首轮回填不推）。特别关注是关注的超集。
 - **两种登录**：配置微博 Cookie（主），或留空走**访客 session**（无头浏览器自动引导，复刻 app 的 WebView incarnate 流程）。
 - **验证码人工处理**：命中反爬验证码时，WebUI 实时显示验证码页面截图，你直接在浏览器里点击/滑动完成，解完无缝继续。
-- **WebUI 管理**：搜索/关注/取关用户、看时间线、改 Cookie 与抓取参数、WebDAV 备份恢复。
-- **对外 API**：Bearer Token 鉴权，提供聚合时间线 / 用户微博 / 关注列表 / 状态。
-- **WebDAV 备份**：与安卓 app 的 `weibox_backup.json` v2 格式互通。
+- **WebUI 管理**：搜索/关注/取关/特别关注用户、看时间线（主/特别关注/热门）、改 Cookie 与抓取参数、WebDAV 备份恢复。
+- **对外 API**：Bearer Token 鉴权，提供聚合时间线 / 热门流 / 特别关注时间线 / 用户微博 / 关注列表 / 状态。
+- **WebDAV 备份**：与安卓 app 的 `weibox_backup.json` v2 格式互通（含特别关注列表，旧备份向后兼容）。
 
 ## 本地运行
 
@@ -125,10 +127,15 @@ docker compose -f docker-compose.hub.yml up -d
 |---|---|---|
 | `GET /api/v1/status` | — | 抓取状态 |
 | `GET /api/v1/timeline?limit=50&offset=0` | 缓存 | 聚合时间线（所有关注用户，按时间倒序） |
-| `GET /api/v1/users` | 库 | 关注列表 |
+| `GET /api/v1/hot?limit=50&offset=0` | 缓存 | 微博热门流（按热度顺序） |
+| `GET /api/v1/special/timeline?limit=50&offset=0` | 缓存 | 特别关注聚合时间线 |
+| `GET /api/v1/users` | 库 | 关注列表（每项带 `followed` / `special`） |
+| `GET /api/v1/special/users` | 库 | 特别关注列表 |
 | `POST /api/v1/users` `{"id":"<uid>"}` | 库 | 关注（自动补全资料） |
-| `DELETE /api/v1/users/{uid}` | 库 | 取关 |
-| `GET /api/v1/users/{uid}` | 实时 | 用户主页详情 |
+| `DELETE /api/v1/users/{uid}` | 库 | 取关（一并移除特别关注） |
+| `POST /api/v1/users/{uid}/special` | 库 | 设为特别关注（未关注则自动先关注） |
+| `DELETE /api/v1/users/{uid}/special` | 库 | 取消特别关注（仍保留普通关注） |
+| `GET /api/v1/users/{uid}` | 实时 | 用户主页详情（带 `followed` / `special`） |
 | `GET /api/v1/users/{uid}/posts?page=1&count=20` | 实时 | 该用户微博（翻页） |
 | `GET /api/v1/users/{uid}/following?page=2` | 实时 | 该用户的关注列表 |
 | `GET /api/v1/posts/{mid}/comments?max_id=&page=1` | 实时 | 评论（`next_max_id` 翻页） |
@@ -165,7 +172,7 @@ token/密码常数时间比对。
 
 ## FCM 推送（可选）
 
-抓取撞到微博验证码时，可推送通知到 app，让你点开在 app 内实时解锁（详见根 README）。
+两类推送：**验证码**（抓取撞到验证码 → 点通知在 app 内实时解锁）与**特别关注新微博**（特别关注的用户发新微博、被抓到 → 通知到 app，每人每轮聚合一条，首轮回填不推）。详见根 README。
 推送需要**一对来自同一个 Firebase 项目的凭证**——都**不在仓库里**，需自己生成：
 
 | 文件 | 给谁 | 放哪 |
@@ -193,7 +200,8 @@ token/密码常数时间比对。
 `WEIBOX_ENABLE_BROWSER` / `WEIBOX_DATA_DIR` / `WEIBOX_PORT`。
 
 运行期配置在 WebUI「设置」里改（存数据库）：Cookie、抓取开关、每轮间隔、请求延迟、
-每用户条数、跳过间隔、保留天数、缓存上限、WebDAV 地址/账号。
+每用户条数、跳过间隔、保留天数、缓存上限、WebDAV 地址/账号，以及**热门流**（开关、
+每轮条数、缓存上限、容器 ID）。
 
 ## 目录结构
 
@@ -210,8 +218,10 @@ server/app/
 │   ├── visitor.py       # 访客 session 引导（incarnate 流程）
 │   └── captcha.py       # 验证码交互协调
 ├── services/
-│   ├── scraper.py       # 定时抓取调度
-│   ├── repo.py          # 用户/微博读写
+│   ├── scraper.py       # 定时抓取调度（关注用户 + 热门流）
+│   ├── repo.py          # 用户/微博/热门/特别关注读写
+│   ├── live.py          # 实时代理（主页/微博/关注/评论/搜索）
+│   ├── push.py          # FCM 推送（验证码 + 特别关注新帖）
 │   └── webdav.py        # 与 app 兼容的 WebDAV 备份
 ├── api/                 # 公开 API / WebUI 后端 / 验证码 WebSocket / 鉴权
 └── web/static/          # WebUI（原生 JS）

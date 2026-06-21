@@ -27,6 +27,9 @@ class FollowedUser(Base):
     verified: Mapped[bool] = mapped_column(Boolean, default=False)
     verified_reason: Mapped[str] = mapped_column(String, default="")
 
+    # 特别关注：新微博推送 + 独立时间线（关注的超集）
+    special: Mapped[bool] = mapped_column(Boolean, default=False)
+
     # 抓取调度状态（毫秒时间戳，与 app 一致）
     last_fetched_at: Mapped[int] = mapped_column(Integer, default=0)
     added_at: Mapped[int] = mapped_column(Integer, default=0)

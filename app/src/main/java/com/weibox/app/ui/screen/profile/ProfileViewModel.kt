@@ -17,6 +17,7 @@ data class ProfileUiState(
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
     val isFollowed: Boolean = false,
+    val isSpecial: Boolean = false,
     val error: String? = null,
     val currentPage: Int = 1,
     val hasMore: Boolean = true
@@ -37,6 +38,9 @@ class ProfileViewModel @Inject constructor(
         userId = uid
         repo.isFollowed(uid)
             .onEach { followed -> _state.update { it.copy(isFollowed = followed) } }
+            .launchIn(viewModelScope)
+        repo.isSpecial(uid)
+            .onEach { special -> _state.update { it.copy(isSpecial = special) } }
             .launchIn(viewModelScope)
         load()
     }
@@ -84,5 +88,10 @@ class ProfileViewModel @Inject constructor(
             if (_state.value.isFollowed) repo.unfollowUser(user.id)
             else repo.followUser(user)
         }
+    }
+
+    fun toggleSpecial() {
+        val uid = userId.ifEmpty { _state.value.user?.id ?: return }
+        viewModelScope.launch { repo.setSpecial(uid, !_state.value.isSpecial) }
     }
 }

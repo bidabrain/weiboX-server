@@ -10,5 +10,6 @@ data class WeiboUser(
     val followCount: Int,
     val statusesCount: Int,
     val verified: Boolean = false,
-    val verifiedReason: String = ""
+    val verifiedReason: String = "",
+    val special: Boolean = false
 )

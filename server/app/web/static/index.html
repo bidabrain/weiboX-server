@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>WeiboX Server</title>
-  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/style.css?v=1.3.1" />
 </head>
 <body>
   <!-- 登录 -->
@@ -71,7 +71,13 @@
 
       <!-- 时间线 -->
       <section id="tab-timeline" class="tab-panel hidden">
-        <div class="row"><button id="reload-timeline">刷新</button></div>
+        <div class="row">
+          <div class="seg-group">
+            <button id="tl-mode-all" class="seg active">全部</button>
+            <button id="tl-mode-special" class="seg">特别关注</button>
+          </div>
+          <button id="reload-timeline">刷新</button>
+        </div>
         <div id="timeline-list" class="feed"></div>
       </section>
 
@@ -90,6 +96,11 @@
             <button type="submit">搜索</button>
           </form>
           <div id="search-results" class="user-list"></div>
+        </div>
+        <div class="card">
+          <h3>特别关注 <span id="special-count" class="muted"></span></h3>
+          <p class="muted small">特别关注的用户发新微博会推送通知，并可在时间线「特别关注」里单独查看。</p>
+          <div id="special-list" class="user-list"></div>
         </div>
         <div class="card">
           <h3>已关注 <span id="following-count" class="muted"></span></h3>
@@ -192,6 +203,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=1.3.1"></script>
 </body>
 </html>

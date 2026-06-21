@@ -68,13 +68,19 @@ async function refreshStatus() {
 }
 $("scrape-now").addEventListener("click", async () => { await api("/admin/api/scrape-now", { method: "POST" }); refreshStatus(); });
 
-// ── 关注/取关（通用）────────────────────────────────────────────
+// ── 关注/取关 + 特别关注（通用）─────────────────────────────────
 async function doFollow(uid) { await api("/api/v1/users", { method: "POST", body: JSON.stringify({ id: uid }) }); }
 async function doUnfollow(uid) { await api("/api/v1/users/" + encodeURIComponent(uid), { method: "DELETE" }); }
+async function doSpecial(uid) { await api("/api/v1/users/" + encodeURIComponent(uid) + "/special", { method: "POST" }); }
+async function doUnspecial(uid) { await api("/api/v1/users/" + encodeURIComponent(uid) + "/special", { method: "DELETE" }); }
 
 // ── 用户卡片渲染（搜索 / 关注列表 / TA的关注 共用）──────────────
 function userItemHtml(u) {
   const followed = !!u.followed;
+  const special = !!u.special;
+  const star = special
+    ? `<button class="star-btn active" data-unspecial="${esc(u.id)}" title="取消特别关注">★</button>`
+    : `<button class="star-btn" data-special="${esc(u.id)}" title="特别关注">☆</button>`;
   const btn = followed
     ? `<button class="ghost small-btn" data-unfollow="${esc(u.id)}">取关</button>`
     : `<button class="small-btn" data-follow="${esc(u.id)}">关注</button>`;
@@ -83,7 +89,7 @@ function userItemHtml(u) {
     <div class="u-main clk" data-uid="${esc(u.id)}">
       <div class="u-name">${esc(u.screen_name)} ${u.verified ? "✔" : ""}</div>
       <div class="u-desc">${esc(u.description || "")} · 粉丝 ${esc(String(u.followers_count || ""))}</div>
-    </div>${btn}</div>`;
+    </div>${star}${btn}</div>`;
 }
 function bindUserList(container, onChange) {
   container.querySelectorAll("[data-uid].clk").forEach((el) =>
@@ -92,6 +98,10 @@ function bindUserList(container, onChange) {
     b.addEventListener("click", async (e) => { e.stopPropagation(); b.disabled = true; await doFollow(b.dataset.follow); onChange && onChange(); }));
   container.querySelectorAll("[data-unfollow]").forEach((b) =>
     b.addEventListener("click", async (e) => { e.stopPropagation(); b.disabled = true; await doUnfollow(b.dataset.unfollow); onChange && onChange(); }));
+  container.querySelectorAll("[data-special]").forEach((b) =>
+    b.addEventListener("click", async (e) => { e.stopPropagation(); b.disabled = true; await doSpecial(b.dataset.special); onChange && onChange(); }));
+  container.querySelectorAll("[data-unspecial]").forEach((b) =>
+    b.addEventListener("click", async (e) => { e.stopPropagation(); b.disabled = true; await doUnspecial(b.dataset.unspecial); onChange && onChange(); }));
 }
 function renderUsers(container, users, onChange) {
   if (!users.length) { container.innerHTML = '<div class="muted">无结果</div>'; return; }
@@ -118,14 +128,39 @@ async function loadFollowing() {
     $("following-count").textContent = `(${data.users.length})`;
     renderUsers($("following-list"), data.users, loadFollowing);
   } catch {}
+  loadSpecial();
+}
+async function loadSpecial() {
+  try {
+    const data = await api("/api/v1/special/users");
+    $("special-count").textContent = `(${data.users.length})`;
+    if (!data.users.length) { $("special-list").innerHTML = '<div class="muted">还没有特别关注。点用户旁的 ☆ 添加。</div>'; return; }
+    renderUsers($("special-list"), data.users, loadFollowing);
+  } catch {}
 }
 
 // ── 时间线 + 评论 ───────────────────────────────────────────────
+let timelineMode = "all";   // "all" 主时间线 | "special" 特别关注
 $("reload-timeline").addEventListener("click", loadTimeline);
+$("tl-mode-all").addEventListener("click", () => setTimelineMode("all"));
+$("tl-mode-special").addEventListener("click", () => setTimelineMode("special"));
+function setTimelineMode(mode) {
+  timelineMode = mode;
+  $("tl-mode-all").classList.toggle("active", mode === "all");
+  $("tl-mode-special").classList.toggle("active", mode === "special");
+  loadTimeline();
+}
 async function loadTimeline() {
   $("timeline-list").innerHTML = '<div class="muted">加载中…</div>';
-  try { const data = await api("/api/v1/timeline?limit=50"); renderPosts($("timeline-list"), data.posts); }
-  catch (err) { $("timeline-list").innerHTML = `<div class="error">${esc(err.message)}</div>`; }
+  const path = timelineMode === "special" ? "/api/v1/special/timeline?limit=50" : "/api/v1/timeline?limit=50";
+  try {
+    const data = await api(path);
+    if (timelineMode === "special" && !data.posts.length) {
+      $("timeline-list").innerHTML = '<div class="muted">还没有特别关注的微博。在用户旁点 ☆ 添加特别关注。</div>';
+      return;
+    }
+    renderPosts($("timeline-list"), data.posts);
+  } catch (err) { $("timeline-list").innerHTML = `<div class="error">${esc(err.message)}</div>`; }
 }
 $("reload-hot").addEventListener("click", loadHot);
 async function loadHot() {
@@ -222,6 +257,9 @@ async function loadProfileHeader(uid) {
     const btn = u.followed
       ? `<button class="ghost small-btn" id="pf-follow">取关</button>`
       : `<button class="small-btn" id="pf-follow">关注</button>`;
+    const sbtn = u.special
+      ? `<button class="star-btn active" id="pf-special" title="取消特别关注">★</button>`
+      : `<button class="star-btn" id="pf-special" title="特别关注">☆</button>`;
     $("profile-header").innerHTML = `
       ${u.cover_url ? `<div class="pf-cover" style="background-image:url('${esc(img(u.cover_url))}')"></div>` : ""}
       <div class="pf-top">
@@ -230,12 +268,17 @@ async function loadProfileHeader(uid) {
           <div class="pf-name">${esc(u.screen_name)} ${u.verified ? "✔" : ""}</div>
           <div class="muted small">${esc(u.verified_reason || "")}</div>
           <div class="pf-stats muted small">微博 ${u.statuses_count} · 关注 ${u.follow_count} · 粉丝 ${esc(String(u.followers_count))}</div>
-        </div>${btn}
+        </div>${sbtn}${btn}
       </div>
       <div class="pf-desc">${esc(u.description || "")}</div>`;
     $("pf-follow").addEventListener("click", async () => {
       $("pf-follow").disabled = true;
       if (u.followed) await doUnfollow(uid); else await doFollow(uid);
+      loadProfileHeader(uid); loadFollowing();
+    });
+    $("pf-special").addEventListener("click", async () => {
+      $("pf-special").disabled = true;
+      if (u.special) await doUnspecial(uid); else await doSpecial(uid);
       loadProfileHeader(uid); loadFollowing();
     });
   } catch (err) { $("profile-header").innerHTML = `<div class="error">${esc(err.message)}</div>`; }

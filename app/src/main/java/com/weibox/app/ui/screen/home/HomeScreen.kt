@@ -53,7 +53,11 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             WeiboTopBar(
-                title = if (state.isRandomMode) "随机浏览" else "时间线",
+                title = when (state.feedMode) {
+                    FeedMode.TIMELINE -> "时间线"
+                    FeedMode.SPECIAL  -> "特别关注"
+                    FeedMode.RANDOM   -> "随机浏览"
+                },
                 onTitleClick = vm::toggleMode,
                 actions = {
                     RefreshStatusBar(
@@ -82,10 +86,14 @@ fun HomeScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("还没有关注任何用户", style = MaterialTheme.typography.bodyLarge)
+                        val special = state.feedMode == FeedMode.SPECIAL
+                        Text(
+                            if (special) "还没有特别关注的微博" else "还没有关注任何用户",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            "去搜索页面添加关注",
+                            if (special) "在用户旁点 ☆ 添加特别关注" else "去搜索页面添加关注",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                         )

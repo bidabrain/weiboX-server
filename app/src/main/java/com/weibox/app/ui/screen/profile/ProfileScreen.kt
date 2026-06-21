@@ -11,6 +11,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -61,6 +63,14 @@ fun ProfileScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = vm::toggleSpecial) {
+                        Icon(
+                            if (state.isSpecial) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                            contentDescription = if (state.isSpecial) "取消特别关注" else "特别关注",
+                            tint = if (state.isSpecial) androidx.compose.ui.graphics.Color(0xFFF5A623)
+                                   else LocalContentColor.current
+                        )
+                    }
                     IconButton(onClick = vm::toggleFollow) {
                         Icon(
                             if (state.isFollowed) Icons.Filled.Check else Icons.Filled.PersonAdd,

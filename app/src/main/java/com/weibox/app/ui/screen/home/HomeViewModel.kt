@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+enum class FeedMode { TIMELINE, SPECIAL, RANDOM }
+
 data class HomeUiState(
     val posts: List<WeiboPost> = emptyList(),
     val isLoading: Boolean = false,
@@ -20,7 +22,7 @@ data class HomeUiState(
     val currentPage: Int = 1,
     val hasMore: Boolean = true,
     val lastRefreshTime: Long = 0L,
-    val isRandomMode: Boolean = false
+    val feedMode: FeedMode = FeedMode.TIMELINE
 )
 
 @HiltViewModel
@@ -33,18 +35,22 @@ class HomeViewModel @Inject constructor(
     val state: StateFlow<HomeUiState> = _state.asStateFlow()
 
     private var allPosts: List<WeiboPost> = emptyList()
+    private var specialPosts: List<WeiboPost> = emptyList()
+    private var randomPosts: List<WeiboPost> = emptyList()
 
     init {
         repo.getCachedTimeline()
             .onEach { posts ->
                 allPosts = posts
-                _state.update { s ->
-                    s.copy(
-                        posts = if (s.isRandomMode) posts.shuffled() else posts,
-                        isLoading = false,
-                        isEmpty = posts.isEmpty()
-                    )
-                }
+                if (_state.value.feedMode == FeedMode.RANDOM) randomPosts = posts.shuffled()
+                recompute()
+            }
+            .launchIn(viewModelScope)
+
+        repo.getCachedSpecialTimeline()
+            .onEach { posts ->
+                specialPosts = posts
+                recompute()
             }
             .launchIn(viewModelScope)
 
@@ -57,6 +63,18 @@ class HomeViewModel @Inject constructor(
         refresh()
     }
 
+    /** 按当前模式重算展示列表。 */
+    private fun recompute() {
+        _state.update { s ->
+            val list = when (s.feedMode) {
+                FeedMode.TIMELINE -> allPosts
+                FeedMode.SPECIAL  -> specialPosts
+                FeedMode.RANDOM   -> randomPosts
+            }
+            s.copy(posts = list, isLoading = false, isEmpty = list.isEmpty())
+        }
+    }
+
     fun refresh() {
         viewModelScope.launch { doRefresh() }
     }
@@ -65,7 +83,8 @@ class HomeViewModel @Inject constructor(
     suspend fun doRefresh() {
         if (_state.value.isRefreshing) return  // 防止并发重复刷新
         _state.update { it.copy(isRefreshing = true, error = null) }
-        runCatching { repo.refreshTimeline() }
+        val special = _state.value.feedMode == FeedMode.SPECIAL
+        runCatching { if (special) repo.refreshSpecialTimeline() else repo.refreshTimeline() }
             .onSuccess { posts ->
                 prefs.saveLastRefreshTime(System.currentTimeMillis())
                 _state.update { it.copy(currentPage = 1, hasMore = posts.isNotEmpty()) }
@@ -74,14 +93,17 @@ class HomeViewModel @Inject constructor(
         _state.update { it.copy(isRefreshing = false) }
     }
 
+    /** 点标题循环：时间线 → 特别关注 → 随机浏览 → 时间线。 */
     fun toggleMode() {
-        val newRandom = !_state.value.isRandomMode
-        _state.update { s ->
-            s.copy(
-                isRandomMode = newRandom,
-                posts = if (newRandom) allPosts.shuffled() else allPosts
-            )
+        val next = when (_state.value.feedMode) {
+            FeedMode.TIMELINE -> FeedMode.SPECIAL
+            FeedMode.SPECIAL  -> FeedMode.RANDOM
+            FeedMode.RANDOM   -> FeedMode.TIMELINE
         }
+        if (next == FeedMode.RANDOM) randomPosts = allPosts.shuffled()
+        _state.update { it.copy(feedMode = next) }
+        recompute()
+        if (next == FeedMode.SPECIAL) refresh()   // 切到特关顺带拉一次最新
     }
 
     fun loadMore() {
@@ -89,8 +111,9 @@ class HomeViewModel @Inject constructor(
         if (s.isLoadingMore || s.isRefreshing || !s.hasMore) return
         viewModelScope.launch {
             val nextPage = s.currentPage + 1
+            val special = s.feedMode == FeedMode.SPECIAL
             _state.update { it.copy(isLoadingMore = true) }
-            runCatching { repo.loadMoreTimeline(nextPage) }
+            runCatching { if (special) repo.loadMoreSpecialTimeline(nextPage) else repo.loadMoreTimeline(nextPage) }
                 .onSuccess { newPosts ->
                     _state.update {
                         it.copy(

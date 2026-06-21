@@ -30,7 +30,9 @@ fun FollowingScreen(
                         user = user,
                         isFollowed = true,
                         onClick = { onNavigateToProfile(user.id) },
-                        onFollowToggle = { vm.unfollow(user.id) }
+                        onFollowToggle = { vm.unfollow(user.id) },
+                        isSpecial = user.special,
+                        onSpecialToggle = { vm.toggleSpecial(user) }
                     )
                     HorizontalDivider()
                 }

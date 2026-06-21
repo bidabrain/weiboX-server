@@ -135,6 +135,8 @@ def webdav_restore(import_cookie: bool = Query(False)):
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
     added = repo.replace_all_users(users)
+    # 恢复特别关注标记（合并语义：只增不清）
+    repo.mark_special_batch([u["id"] for u in users if u.get("special")])
     if import_cookie and cookie:
         store.set_value("cookie", cookie)
     scraper.trigger_now()

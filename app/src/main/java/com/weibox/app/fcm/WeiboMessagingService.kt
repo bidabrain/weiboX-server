@@ -11,6 +11,7 @@ import androidx.core.app.NotificationManagerCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.weibox.app.CaptchaActivity
+import com.weibox.app.MainActivity
 import com.weibox.app.R
 import com.weibox.app.data.repository.WeiboRepository
 import dagger.hilt.android.AndroidEntryPoint
@@ -20,6 +21,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 const val CAPTCHA_CHANNEL_ID = "weibox_captcha"
+const val SPECIAL_CHANNEL_ID = "weibox_special"
 private const val CAPTCHA_NOTIF_ID = 1001
 
 @AndroidEntryPoint
@@ -41,6 +43,44 @@ class WeiboMessagingService : FirebaseMessagingService() {
                 data["title"] ?: "微博验证码",
                 data["body"] ?: "点击在 app 内完成验证"
             )
+            "new_posts" -> showNewPostsNotification(
+                data["title"] ?: "特别关注更新",
+                data["body"] ?: "特别关注的用户发布了新微博",
+                data["user_id"] ?: ""
+            )
+        }
+    }
+
+    private fun showNewPostsNotification(title: String, body: String, userId: String) {
+        ensureSpecialChannel()
+        // 点击打开 app（主界面）。同一用户多条更新合并到同一通知。
+        val intent = Intent(this, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        val pending = PendingIntent.getActivity(
+            this, userId.hashCode(), intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notif = NotificationCompat.Builder(this, SPECIAL_CHANNEL_ID)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .setContentIntent(pending)
+            .build()
+        runCatching {
+            // 通知 id 按用户区分，不同用户的更新各自成条
+            val notifId = if (userId.isNotEmpty()) 2000 + (userId.hashCode() and 0xFFFF) else 2000
+            NotificationManagerCompat.from(this).notify(notifId, notif)
+        }
+    }
+
+    private fun ensureSpecialChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                SPECIAL_CHANNEL_ID, "特别关注更新", NotificationManager.IMPORTANCE_DEFAULT
+            ).apply { description = "特别关注的用户发布新微博时提醒" }
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
     }
 

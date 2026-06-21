@@ -81,6 +81,23 @@ class ServerApi(baseUrl: String, private val token: String) {
         execute(authed(Request.Builder().url(url)).delete().build())
     }
 
+    // ── 特别关注 ──────────────────────────────────────────────────
+    suspend fun setSpecial(userId: String, special: Boolean): Unit = withContext(Dispatchers.IO) {
+        val url = urlBuilder("/users/$userId/special").build()
+        val builder = authed(Request.Builder().url(url))
+        val request = if (special) builder.post("".toRequestBody(jsonMedia)).build()
+                      else builder.delete().build()
+        execute(request)
+    }
+
+    suspend fun getSpecialUsers(): List<WeiboUser> = withContext(Dispatchers.IO) {
+        parseUsers(getObject("/special/users"))
+    }
+
+    suspend fun getSpecialTimeline(limit: Int, offset: Int): List<WeiboPost> = withContext(Dispatchers.IO) {
+        parsePosts(getObject("/special/timeline", mapOf("limit" to "$limit", "offset" to "$offset")))
+    }
+
     // ── 时间线（缓存聚合）─────────────────────────────────────────
     suspend fun getTimeline(limit: Int, offset: Int): List<WeiboPost> = withContext(Dispatchers.IO) {
         parsePosts(getObject("/timeline", mapOf("limit" to "$limit", "offset" to "$offset")))
@@ -151,7 +168,8 @@ class ServerApi(baseUrl: String, private val token: String) {
         followCount = o.optInt("follow_count"),
         statusesCount = o.optInt("statuses_count"),
         verified = o.optBoolean("verified"),
-        verifiedReason = o.optString("verified_reason")
+        verifiedReason = o.optString("verified_reason"),
+        special = o.optBoolean("special")
     )
 
     private fun parsePosts(root: JSONObject): List<WeiboPost> {

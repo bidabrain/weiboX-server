@@ -28,6 +28,7 @@ def user_to_dict(u: FollowedUser) -> dict:
         "statuses_count": u.statuses_count,
         "verified": u.verified,
         "verified_reason": u.verified_reason,
+        "special": u.special,
         "last_fetched_at": u.last_fetched_at,
     }
 
@@ -41,6 +42,61 @@ def list_users() -> List[dict]:
 def is_followed(user_id: str) -> bool:
     with get_session() as s:
         return s.get(FollowedUser, user_id) is not None
+
+
+# ── 特别关注（关注的超集）────────────────────────────────────────
+def is_special(user_id: str) -> bool:
+    with get_session() as s:
+        u = s.get(FollowedUser, user_id)
+        return bool(u and u.special)
+
+
+def set_special(user_id: str, special: bool) -> None:
+    with get_session() as s:
+        u = s.get(FollowedUser, user_id)
+        if u:
+            u.special = special
+            s.commit()
+
+
+def mark_special_batch(user_ids: List[str]) -> None:
+    """把给定 uid 标为特别关注（合并语义：只增不清，WebDAV 恢复用）。"""
+    if not user_ids:
+        return
+    with get_session() as s:
+        for uid in user_ids:
+            u = s.get(FollowedUser, str(uid))
+            if u:
+                u.special = True
+        s.commit()
+
+
+def special_user_ids() -> set:
+    with get_session() as s:
+        rows = s.execute(select(FollowedUser.id).where(FollowedUser.special == True)).scalars().all()  # noqa: E712
+        return set(rows)
+
+
+def list_special_users() -> List[dict]:
+    with get_session() as s:
+        rows = s.execute(
+            select(FollowedUser).where(FollowedUser.special == True).order_by(FollowedUser.added_at)  # noqa: E712
+        ).scalars().all()
+        return [user_to_dict(u) for u in rows]
+
+
+def get_special_timeline(limit: int = 50, offset: int = 0) -> List[dict]:
+    with get_session() as s:
+        special_ids = s.execute(
+            select(FollowedUser.id).where(FollowedUser.special == True)  # noqa: E712
+        ).scalars().all()
+        if not special_ids:
+            return []
+        rows = s.execute(
+            select(Post).where(Post.user_id.in_(special_ids))
+            .order_by(Post.created_at_ts.desc()).limit(limit).offset(offset)
+        ).scalars().all()
+        return [post_to_dict(p) for p in rows]
 
 
 def add_user(data: dict) -> None:
@@ -149,9 +205,11 @@ def post_to_dict(p: Post) -> dict:
     }
 
 
-def save_posts(posts: List[dict]) -> None:
+def save_posts(posts: List[dict]) -> List[str]:
+    """落库（按 id upsert）。返回本次**真正新增**（DB 里原先没有）的帖子 id 列表。"""
     if not posts:
-        return
+        return []
+    new_ids: List[str] = []
     ts = now_ms()
     with get_session() as s:
         for p in posts:
@@ -178,8 +236,10 @@ def save_posts(posts: List[dict]) -> None:
                 for k, v in payload.items():
                     setattr(row, k, v)
             else:
+                new_ids.append(p["id"])
                 s.add(Post(id=p["id"], **payload))
         s.commit()
+    return new_ids
 
 
 def get_timeline(limit: int = 50, offset: int = 0) -> List[dict]:

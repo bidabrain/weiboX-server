@@ -161,6 +161,10 @@ class Scraper:
         count = max(1, store.get_int("posts_per_user"))
         new_total = 0
 
+        # 特别关注：本轮开始前的快照，用于判断"新帖" + "是否首次回填"
+        users_info = {u["id"]: u for u in repo.list_users()}
+        special_ids = {uid for uid, u in users_info.items() if u.get("special")}
+
         try:
             for index, uid in enumerate(candidates):
                 if self._stop:
@@ -183,9 +187,21 @@ class Scraper:
                     self.status.last_error = "验证码未完成，本轮中止"
                     break
                 if posts:
-                    repo.save_posts(posts)
+                    new_ids = repo.save_posts(posts)
                     new_total += len(posts)
-                    repo.backfill_profile(uid, posts[0].get("user_name", ""), posts[0].get("user_avatar", ""))
+                    name = posts[0].get("user_name", "")
+                    repo.backfill_profile(uid, name, posts[0].get("user_avatar", ""))
+                    # 特别关注：有新帖且非首次回填（之前抓过）才推送，避免首关刷屏
+                    if uid in special_ids and new_ids:
+                        prior = users_info.get(uid, {}).get("last_fetched_at") or 0
+                        if prior > 0:
+                            push_name = name or users_info.get(uid, {}).get("screen_name", "")
+                            try:
+                                await asyncio.to_thread(
+                                    push.notify_new_posts, push_name, len(new_ids), uid
+                                )
+                            except Exception:
+                                pass
                 repo.update_last_fetched(uid, int(time.time() * 1000))
                 self.status.progress_done = index + 1
 

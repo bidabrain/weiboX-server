@@ -85,7 +85,9 @@ fun FollowingListScreen(
                         user = user,
                         isFollowed = state.followedIds.contains(user.id),
                         onClick = { onNavigateToProfile(user.id) },
-                        onFollowToggle = { vm.toggleFollow(user) }
+                        onFollowToggle = { vm.toggleFollow(user) },
+                        isSpecial = state.specialIds.contains(user.id),
+                        onSpecialToggle = { vm.toggleSpecial(user) }
                     )
                     HorizontalDivider()
                 }

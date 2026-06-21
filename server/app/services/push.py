@@ -132,3 +132,13 @@ def notify_captcha(captcha_url: Optional[str] = None) -> int:
         body="抓取被拦截，点击在 app 内完成验证以继续",
         data={"type": "captcha", "url": captcha_url or ""},
     )
+
+
+def notify_new_posts(user_name: str, count: int, user_id: str = "") -> int:
+    """特别关注用户有新微博时调用：每人每轮聚合一条。"""
+    name = user_name or "特别关注用户"
+    return _send(
+        title="特别关注更新",
+        body=f"{name} 发布了 {count} 条新微博",
+        data={"type": "new_posts", "user_id": user_id or "", "user_name": name, "count": count},
+    )

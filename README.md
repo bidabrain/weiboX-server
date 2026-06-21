@@ -2,7 +2,7 @@
 
 **自托管的第三方微博方案：服务端持续抓取 + 轻量安卓客户端。**
 
-WeiboX 分两部分：一个长期运行的**服务端**（`server/`）负责定时抓取你关注用户的微博、扛微博的防爬与验证码；一个**安卓客户端**（`app/`）只跟你自己的服务端通信，浏览体验完整（时间线、主页、关注列表、评论、搜索、关注管理）。
+WeiboX 分两部分：一个长期运行的**服务端**（`server/`）负责定时抓取你关注用户的微博、扛微博的防爬与验证码；一个**安卓客户端**（`app/`）只跟你自己的服务端通信，浏览体验完整（时间线、热门流、特别关注、主页、关注列表、评论、搜索、关注管理，支持浅色/深色/跟随系统主题）。
 
 ```
    安卓 app  ──HTTPS /api/v1──►  你的 WeiboX Server  ──►  m.weibo.cn
@@ -63,11 +63,16 @@ docker compose up -d --build
 
 **服务端**：Python · FastAPI · httpx（抓取）· Playwright（访客 session 引导 + 验证码无头浏览器）· SQLite · firebase-admin（FCM）· 原生 JS WebUI · Docker
 
-**客户端**：Kotlin · Jetpack Compose + Material3 · MVVM + Hilt · Room（本地缓存镜像）· OkHttp · Coil · Firebase Messaging（验证码推送 + app 内解锁）
+**客户端**：Kotlin · Jetpack Compose + Material3（浅色/深色/跟随系统）· MVVM + Hilt · Room（本地缓存镜像）· OkHttp · Coil · Firebase Messaging（验证码 + 特别关注新帖推送）
 
-## FCM 验证码推送（可选）
+## FCM 推送（可选）
 
-服务端抓取撞到验证码时，可推送通知到手机：点通知 → app 打开验证码界面 → 实时显示验证码截图、手指点/滑 → 完成后服务端继续。需要：服务端放你 Firebase 项目的私钥 `server/data/firebase-key.json`，客户端用同项目的 `google-services.json`。不配则推送关闭，验证码仍可在服务端 WebUI 里解。
+两类推送：
+
+- **验证码**：服务端抓取撞到验证码时推送 → 点通知 → app 打开验证码界面 → 实时显示验证码截图、手指点/滑 → 完成后服务端继续。
+- **特别关注新微博**：被你标为特别关注的用户发了新微博、服务端抓到后推送通知（每人每轮聚合一条，首关回填不推）。
+
+二者都需要：服务端放你 Firebase 项目的私钥 `server/data/firebase-key.json`，客户端用同项目的 `google-services.json`。不配则推送关闭，验证码仍可在服务端 WebUI 里解。
 
 ## 项目结构
 
@@ -81,8 +86,8 @@ weiboX/
 │       │   ├── api/ServerApi.kt       # ★ 调服务端 /api/v1
 │       │   ├── repository/            # Room 缓存镜像 + 服务端数据源
 │       │   ├── db/ · model/ · prefs/
-│       ├── fcm/                       # FirebaseMessagingService + 设备注册
-│       └── ui/                        # 时间线 / 主页 / 搜索 / 关注 / 设置
+│       ├── fcm/                       # FirebaseMessagingService（验证码 + 特别关注推送）+ 设备注册
+│       └── ui/                        # 时间线（主/特别关注/随机）/ 热门 / 主页 / 搜索 / 关注 / 设置
 │
 ├── server/                   # WeiboX Server（FastAPI）—— 详见 server/README.md
 │   ├── app/

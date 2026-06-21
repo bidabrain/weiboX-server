@@ -14,6 +14,7 @@ data class SearchUiState(
     val query: String = "",
     val results: List<WeiboUser> = emptyList(),
     val followedIds: Set<String> = emptySet(),
+    val specialIds: Set<String> = emptySet(),
     val isLoading: Boolean = false,
     val error: String? = null,
     val currentPage: Int = 1,
@@ -36,6 +37,12 @@ class SearchViewModel @Inject constructor(
         repo.getFollowedUsers()
             .onEach { users ->
                 _state.update { it.copy(followedIds = users.map { u -> u.id }.toSet()) }
+            }
+            .launchIn(viewModelScope)
+        // 实时监听特别关注状态
+        repo.getSpecialUsers()
+            .onEach { users ->
+                _state.update { it.copy(specialIds = users.map { u -> u.id }.toSet()) }
             }
             .launchIn(viewModelScope)
     }
@@ -101,6 +108,12 @@ class SearchViewModel @Inject constructor(
             } else {
                 repo.followUser(user)
             }
+        }
+    }
+
+    fun toggleSpecial(user: WeiboUser) {
+        viewModelScope.launch {
+            repo.setSpecial(user.id, !_state.value.specialIds.contains(user.id))
         }
     }
 }

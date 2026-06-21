@@ -62,6 +62,16 @@ def hot(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)):
     return {"posts": repo.get_hot_feed(limit=limit, offset=offset)}
 
 
+@router.get("/special/timeline")
+def special_timeline(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)):
+    return {"posts": repo.get_special_timeline(limit=limit, offset=offset)}
+
+
+@router.get("/special/users")
+def special_users():
+    return {"users": repo.list_special_users()}
+
+
 @router.get("/users")
 def users():
     items = repo.list_users()
@@ -93,11 +103,33 @@ def unfollow(user_id: str):
     return {"ok": True}
 
 
+# ── 特别关注（关注的超集）────────────────────────────────────────
+@router.post("/users/{user_id}/special")
+async def add_special(user_id: str):
+    # 特别关注隐含关注：未关注则先加入关注列表（顺带拉取资料）
+    if not repo.is_followed(user_id):
+        try:
+            data = await live.profile(user_id)
+        except (CaptchaRequired, WeiboError, SessionInvalid):
+            data = {"id": user_id}
+        repo.add_user(data)
+        scraper.trigger_now()
+    repo.set_special(user_id, True)
+    return {"ok": True, "special": True}
+
+
+@router.delete("/users/{user_id}/special")
+def remove_special(user_id: str):
+    repo.set_special(user_id, False)
+    return {"ok": True, "special": False}
+
+
 # ── 实时数据（点开才取）──────────────────────────────────────────
 @router.get("/users/{user_id}")
 async def user_profile(user_id: str):
     data = await _guard(live.profile(user_id))
     data["followed"] = repo.is_followed(user_id)
+    data["special"] = repo.is_special(user_id)
     return data
 
 
@@ -112,8 +144,10 @@ async def user_posts(user_id: str, page: int = Query(1, ge=1),
 async def user_following(user_id: str, page: int = Query(2, ge=1)):
     users_list = await _guard(live.following(user_id, page=page))
     followed = {u["id"] for u in repo.list_users()}
+    special = repo.special_user_ids()
     for u in users_list:
         u["followed"] = u["id"] in followed
+        u["special"] = u["id"] in special
     return {"users": users_list}
 
 
@@ -126,8 +160,10 @@ async def post_comments(mid: str, max_id: str = Query(None), page: int = Query(1
 async def search_users(q: str = Query(...), page: int = Query(1, ge=1)):
     results = await _guard(live.search(q, page))
     followed = {u["id"] for u in repo.list_users()}
+    special = repo.special_user_ids()
     for r in results:
         r["followed"] = r["id"] in followed
+        r["special"] = r["id"] in special
     return {"users": results}
 
 

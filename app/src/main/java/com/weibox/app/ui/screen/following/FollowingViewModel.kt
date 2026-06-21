@@ -20,4 +20,8 @@ class FollowingViewModel @Inject constructor(
     fun unfollow(userId: String) {
         viewModelScope.launch { repo.unfollowUser(userId) }
     }
+
+    fun toggleSpecial(user: WeiboUser) {
+        viewModelScope.launch { repo.setSpecial(user.id, !user.special) }
+    }
 }

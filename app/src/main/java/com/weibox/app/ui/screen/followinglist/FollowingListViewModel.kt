@@ -12,6 +12,7 @@ import javax.inject.Inject
 data class FollowingListUiState(
     val users: List<WeiboUser> = emptyList(),
     val followedIds: Set<String> = emptySet(),
+    val specialIds: Set<String> = emptySet(),
     val isLoading: Boolean = true,
     val isLoadingMore: Boolean = false,
     val error: String? = null,
@@ -32,6 +33,9 @@ class FollowingListViewModel @Inject constructor(
     init {
         repo.getFollowedUsers()
             .onEach { list -> _state.update { it.copy(followedIds = list.map { u -> u.id }.toSet()) } }
+            .launchIn(viewModelScope)
+        repo.getSpecialUsers()
+            .onEach { list -> _state.update { it.copy(specialIds = list.map { u -> u.id }.toSet()) } }
             .launchIn(viewModelScope)
     }
 
@@ -74,6 +78,12 @@ class FollowingListViewModel @Inject constructor(
         viewModelScope.launch {
             if (_state.value.followedIds.contains(user.id)) repo.unfollowUser(user.id)
             else repo.followUser(user)
+        }
+    }
+
+    fun toggleSpecial(user: WeiboUser) {
+        viewModelScope.launch {
+            repo.setSpecial(user.id, !_state.value.specialIds.contains(user.id))
         }
     }
 }

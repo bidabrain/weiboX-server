@@ -16,6 +16,7 @@ data class UserEntity(
     val statusesCount: Int,
     val verified: Boolean,
     val verifiedReason: String,
+    val special: Boolean = false,
     val followedAt: Long = System.currentTimeMillis(),
     val lastFetchedAt: Long = 0L
 ) {
@@ -29,7 +30,8 @@ data class UserEntity(
         followCount = followCount,
         statusesCount = statusesCount,
         verified = verified,
-        verifiedReason = verifiedReason
+        verifiedReason = verifiedReason,
+        special = special
     )
 }
 
@@ -43,5 +45,6 @@ fun WeiboUser.toEntity() = UserEntity(
     followCount = followCount,
     statusesCount = statusesCount,
     verified = verified,
-    verifiedReason = verifiedReason
+    verifiedReason = verifiedReason,
+    special = special
 )

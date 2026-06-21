@@ -53,6 +53,21 @@ button:hover { background: var(--accent-d); }
 button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
 button.ghost:hover { background: rgba(127,127,127,.1); }
 button.small-btn { padding: 5px 12px; font-size: 13px; }
+/* 特别关注星标按钮 */
+button.star-btn {
+  background: transparent; color: var(--muted); border: 1px solid var(--border);
+  padding: 4px 9px; font-size: 15px; line-height: 1;
+}
+button.star-btn:hover { background: rgba(127,127,127,.1); }
+button.star-btn.active { color: #f5a623; border-color: #f5a623; }
+/* 分段切换（时间线 全部/特别关注）*/
+.seg-group { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg-group .seg {
+  background: transparent; color: var(--muted); border: none; border-radius: 0;
+  padding: 7px 14px; font-weight: 500;
+}
+.seg-group .seg:hover { background: rgba(127,127,127,.1); }
+.seg-group .seg.active { color: var(--accent); background: rgba(255,106,0,.1); }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 label { display: flex; align-items: center; gap: 8px; margin: 8px 0; justify-content: space-between; }
 label.inline { justify-content: flex-start; }

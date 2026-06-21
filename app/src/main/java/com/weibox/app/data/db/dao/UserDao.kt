@@ -31,4 +31,14 @@ interface UserDao {
 
     @Query("UPDATE followed_users SET lastFetchedAt = :time WHERE id = :userId")
     suspend fun updateLastFetchedAt(userId: String, time: Long)
+
+    // ── 特别关注 ──────────────────────────────────────────────────
+    @Query("SELECT * FROM followed_users WHERE special = 1 ORDER BY followedAt DESC")
+    fun getSpecialUsers(): Flow<List<UserEntity>>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM followed_users WHERE id = :userId AND special = 1)")
+    fun isSpecial(userId: String): Flow<Boolean>
+
+    @Query("UPDATE followed_users SET special = :special WHERE id = :userId")
+    suspend fun setSpecial(userId: String, special: Boolean)
 }
