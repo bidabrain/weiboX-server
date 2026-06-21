@@ -163,6 +163,30 @@ token/密码常数时间比对。
 可选再加一层：把 WebUI 域名放到 **Cloudflare Access** 后面（边缘身份验证），
 `/api/v1`（给 app 用）保持 Token 鉴权。
 
+## FCM 推送（可选）
+
+抓取撞到微博验证码时，可推送通知到 app，让你点开在 app 内实时解锁（详见根 README）。
+推送需要**一对来自同一个 Firebase 项目的凭证**——都**不在仓库里**，需自己生成：
+
+| 文件 | 给谁 | 放哪 |
+|---|---|---|
+| 服务账号私钥 `firebase-key.json` | **server** | `server/data/firebase-key.json` |
+| 客户端配置 `google-services.json` | **app** | `app/google-services.json`（见根 README） |
+
+### 服务端：拿到并放好 firebase-key.json
+
+1. [Firebase 控制台](https://console.firebase.google.com/) → 你的项目 → ⚙️ **项目设置** → **服务账号** 标签。
+2. 点 **生成新的私钥** → 下载得到的 `.json`。
+3. 放到 **`server/data/firebase-key.json`**（本地运行）。
+   Docker 部署时放到挂载的 `./data/firebase-key.json`（已随 data 卷进容器）。
+4. 重启服务端即自动启用——日志或 WebUI 无报错即生效；缺该文件则推送静默关闭、其余功能照常。
+
+> 想用别的路径：设环境变量 `WEIBOX_FIREBASE_KEY=/绝对/路径/key.json`。
+> ⚠️ 这是能发推送的密钥，**别提交、别泄露**（`server/.gitignore` 已忽略 `data/`）。
+
+全新 `git clone` 后若要启用推送：补上**服务端的 `firebase-key.json`** + **app 的 `google-services.json`**
+（同一 Firebase 项目，app 注册包名 `com.weibox.app`）即可；不需要推送则两者都不放，验证码仍可在 WebUI 里解。
+
 ## 配置项
 
 部署期配置走环境变量（见 `.env.example`）：`WEIBOX_ADMIN_PASSWORD` / `WEIBOX_API_TOKEN` /
