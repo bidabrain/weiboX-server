@@ -1,198 +1,110 @@
 # WeiboX
 
-**无需登录，开箱即用的第三方微博 Android 客户端。**
+**自托管的第三方微博方案：服务端持续抓取 + 轻量安卓客户端。**
 
-安装后直接浏览——App 冷启动时在后台自动完成微博访客 session 初始化，获取真实的访客 Cookie（`SUB` / `XSRF-TOKEN` / `_T_WM` 等），凭此直接调用 `m.weibo.cn` 的移动端 API，无需任何账号配置。如需热门评论分页功能，在设置中粘贴微博 Cookie 即可升级到完整模式。
+WeiboX 分两部分：一个长期运行的**服务端**（`server/`）负责定时抓取你关注用户的微博、扛微博的防爬与验证码；一个**安卓客户端**（`app/`）只跟你自己的服务端通信，浏览体验完整（时间线、主页、关注列表、评论、搜索、关注管理）。
 
-## 运行模式
+```
+   安卓 app  ──HTTPS /api/v1──►  你的 WeiboX Server  ──►  m.weibo.cn
+  (只连 server)                  (扛防爬/验证码/缓存)      (真实数据源)
+```
 
-|  | 访客模式（无需登录） | 完整模式（配置 Cookie） |
-|---|---|---|
-| 搜索用户（关键词） | ✅ 解析 s.weibo.com HTML | ✅ m.weibo.cn API |
-| 搜索用户（数字 UID） | ✅ | ✅ |
-| 用户主页 / 微博列表 | ✅ | ✅ |
-| 时间线（关注用户聚合） | ✅ | ✅ |
-| 评论 | ✅ 基础首页 | ✅ 热门评论 + 无限分页 |
-| 某用户的关注列表 | ✅ | ✅ |
-| WebDAV 备份 / 恢复 | ✅ 与 Cookie 无关 | ✅ |
+## 为什么是客户端-服务器
 
-> **访客 Cookie 自动获取**：冷启动时后台启动 WebView 加载 `m.weibo.cn`，由页面 JS 自动执行 `genvisitor2` → incarnate 流程，建立完整的微博匿名 session。Cookie 提取后注入 OkHttp 请求头，所有 API 调用均以此访客身份发出，效果等同于在浏览器中未登录访问微博。访客 Cookie 仅保存在内存中，每次冷启动重新获取。
+早期 WeiboX 是单机 app 直连微博，但微博有防爬，必须前后台限速抓取、还要在端上处理验证码。改成服务端架构后：
 
-## 功能
+- **服务端扛防爬**：长期运行、可把抓取间隔调长，遍历全部关注用户定时抓取并缓存。
+- **app 极简**：拉的是服务端**已缓存**的数据，无防爬顾虑，打开即同步、下拉刷新，无任何后台服务。
+- **验证码远程解**：服务端撞到验证码 → 推送通知到 app（或 WebUI）→ 你在界面里实时点/滑解锁 → 服务端继续。
+- **多端共享**：服务端是单一数据源，关注列表 / 抓取 / Cookie 都在服务端集中管理。
 
-- **匿名浏览**：无需微博账号，安装即用，自动建立访客会话
-- **时间线**：聚合所有本地关注用户的最新微博，顶栏显示刷新状态，支持手动点击刷新
-- **内容发现**：关键词或数字 UID 搜索用户（访客模式走 `s.weibo.com` HTML 解析，无需 API 权限）
-- **关注管理**：本地独立维护关注列表（与微博账号无关），随时关注 / 取关
-- **用户主页**：头图、头像、简介、统计数据、微博列表、关注列表
-- **评论**：基础评论随时可看；配置 Cookie 后解锁热门评论排序和无限分页
-- **验证码处理**：触发微博验证码时自动弹出内置浏览器，手动完成后无缝继续
-- **防限流**：参考 weibo-crawler，请求间隔 3~6 秒随机，活跃用户优先刷新
-- **WebDAV 备份 / 恢复**：关注列表和 Cookie 备份到私有 WebDAV 服务器
-- **深色模式**：跟随系统或在设置中手动切换
+## 组成
+
+| 目录 | 说明 |
+|---|---|
+| [`server/`](server/README.md) | **WeiboX Server** —— FastAPI 服务端：定时抓取、访客 session 引导、验证码交互、统一 `/api/v1`、WebUI 管理后台、WebDAV 备份、FCM 推送、Docker 部署。**详见 [server/README.md](server/README.md)**。 |
+| `app/` | **安卓客户端** —— Jetpack Compose 客户端，数据全部来自你的服务端。 |
+
+## 快速开始
+
+### 1. 部署服务端
+
+最简单是 Docker（镜像已含 Playwright/Chromium）：
+
+```bash
+cd server
+echo "WEIBOX_ADMIN_PASSWORD=你的强密码" > .env
+docker compose up -d --build
+```
+
+打开 `http://localhost:8000` 登录 → 设置里**新建 API Token**、搜索并关注用户。
+完整部署（本地运行、Cloudflare Tunnel 公网、Docker Hub 发布）见 **[server/README.md](server/README.md)**。
+
+### 2. 编译安卓客户端
+
+> ⚠️ 本仓库**不含** `app/google-services.json`（FCM 客户端配置，各人用自己的 Firebase 项目）。
+> 先在 [Firebase 控制台](https://console.firebase.google.com/) 建项目、注册 Android app
+> （包名 `com.weibox.app`）、下载 `google-services.json` 放到 **`app/google-services.json`**，再编译。
+
+```bash
+# 放好 app/google-services.json 后
+./gradlew :app:assembleDebug
+# 产物：app/build/outputs/apk/debug/app-debug.apk
+```
+
+> 不需要推送（FCM）的话，验证码也可以始终在服务端 WebUI 里解；但 app 应用了 google-services 插件，
+> 编译仍要求该文件存在。
+
+### 3. 客户端连接服务端
+
+装好 app → **设置** → 填**服务器地址**（如 `https://weibo.example.com`，局域网联调用 `http://192.168.x.x:8000`）+ **API Token** → 测试连接。之后时间线/主页/评论/搜索/关注全走你的服务端。
 
 ## 技术栈
 
-| 层 | 技术 |
-|---|---|
-| UI | Jetpack Compose + Material3 |
-| 架构 | MVVM + Hilt 依赖注入 |
-| 网络 | OkHttp（直连 `m.weibo.cn` / `s.weibo.com`） |
-| 访客 Session | WebView + `android.webkit.CookieManager` 自动初始化 |
-| HTML 解析 | Jsoup（`s.weibo.com` 用户搜索，无需登录） |
-| 本地缓存 | Room（帖子 500 条上限 / 7 天自动清理） |
-| 持久化 | DataStore Preferences |
-| 图片 | Coil |
+**服务端**：Python · FastAPI · httpx（抓取）· Playwright（访客 session 引导 + 验证码无头浏览器）· SQLite · firebase-admin（FCM）· 原生 JS WebUI · Docker
 
-## 界面预览
+**客户端**：Kotlin · Jetpack Compose + Material3 · MVVM + Hilt · Room（本地缓存镜像）· OkHttp · Coil · Firebase Messaging（验证码推送 + app 内解锁）
 
-![UI 预览](docs/ui_mockup.png)
+## FCM 验证码推送（可选）
 
-## 致谢
-
-本项目的网络请求逻辑、接口地址、请求头策略及限流方案，均参考自开源项目：
-
-**[dataabc/weibo-crawler](https://github.com/dataabc/weibo-crawler)**
-
-WeiboX 可以理解为将 weibo-crawler 的 Python 数据获取层用 Kotlin 为 Android 平台重新实现的版本。感谢原项目作者的持续维护。
-
----
+服务端抓取撞到验证码时，可推送通知到手机：点通知 → app 打开验证码界面 → 实时显示验证码截图、手指点/滑 → 完成后服务端继续。需要：服务端放你 Firebase 项目的私钥 `server/data/firebase-key.json`，客户端用同项目的 `google-services.json`。不配则推送关闭，验证码仍可在服务端 WebUI 里解。
 
 ## 项目结构
 
 ```
 weiboX/
-├── app/src/main/
-│   ├── AndroidManifest.xml
-│   └── java/com/weibox/app/
-│       ├── MainActivity.kt              # 入口；冷启动时后台初始化访客 session
-│       ├── WeiboXApp.kt                 # Application，Hilt 初始化
-│       │
+├── app/                      # 安卓客户端（Jetpack Compose）
+│   └── src/main/java/com/weibox/app/
+│       ├── MainActivity.kt           # 入口 + 通知权限 + 设备 token 上报
+│       ├── CaptchaActivity.kt        # app 内验证码界面（WS 截图流 + 触摸转发）
 │       ├── data/
-│       │   ├── api/
-│       │   │   └── WeiboApi.kt          # ★ 核心：m.weibo.cn 接口 + s.weibo.com 搜索
-│       │   ├── db/
-│       │   │   ├── AppDatabase.kt
-│       │   │   ├── dao/
-│       │   │   │   ├── PostDao.kt
-│       │   │   │   └── UserDao.kt
-│       │   │   └── entity/
-│       │   │       ├── PostEntity.kt
-│       │   │       └── UserEntity.kt
-│       │   ├── model/
-│       │   │   ├── WeiboComment.kt
-│       │   │   ├── WeiboPost.kt
-│       │   │   └── WeiboUser.kt
-│       │   ├── prefs/
-│       │   │   └── AppPreferences.kt    # Cookie / WebDAV / 深色模式持久化
-│       │   ├── repository/
-│       │   │   └── WeiboRepository.kt   # 数据层统一入口；自动选择登录 / 访客 Cookie
-│       │   ├── session/
-│       │   │   ├── VisitorSession.kt    # 访客 Cookie 内存状态（冷启动刷新）
-│       │   │   └── CaptchaManager.kt   # 验证码挂起 / 唤醒协调器
-│       │   └── webdav/
-│       │       └── WebDavService.kt     # WebDAV 备份 / 恢复
-│       │
-│       ├── di/
-│       │   └── AppModule.kt             # Hilt 模块
-│       │
-│       ├── navigation/
-│       │   └── NavGraph.kt              # 底部导航 + 路由 + 验证码弹窗监听
-│       │
-│       └── ui/
-│           ├── components/
-│           │   ├── CaptchaDialog.kt     # 内置 WebView 验证码对话框
-│           │   ├── CommentsBottomSheet.kt
-│           │   ├── ImageViewer.kt
-│           │   ├── PostCard.kt
-│           │   ├── UserCard.kt
-│           │   └── WeiboTopBar.kt       # 统一顶部导航栏（含居中 Logo）
-│           ├── screen/
-│           │   ├── following/           # 关注 Tab
-│           │   ├── followinglist/       # 某用户的关注列表
-│           │   ├── home/                # 时间线 Tab（顶栏刷新状态指示）
-│           │   ├── profile/             # 用户主页
-│           │   ├── search/              # 搜索 Tab
-│           │   └── settings/            # 设置 Tab
-│           └── theme/
-│               ├── Color.kt
-│               ├── Theme.kt
-│               └── Type.kt
+│       │   ├── api/ServerApi.kt       # ★ 调服务端 /api/v1
+│       │   ├── repository/            # Room 缓存镜像 + 服务端数据源
+│       │   ├── db/ · model/ · prefs/
+│       ├── fcm/                       # FirebaseMessagingService + 设备注册
+│       └── ui/                        # 时间线 / 主页 / 搜索 / 关注 / 设置
+│
+├── server/                   # WeiboX Server（FastAPI）—— 详见 server/README.md
+│   ├── app/
+│   │   ├── weibo/            # 抓取 client / 解析 / 访客 session / 验证码
+│   │   ├── services/         # 定时抓取调度 / 数据读写 / WebDAV / FCM 推送
+│   │   ├── api/              # /api/v1（浏览）· /admin（管理）· 验证码 WS
+│   │   └── web/static/       # WebUI 管理后台
+│   ├── Dockerfile · docker-compose.yml · docker-compose.hub.yml
+│   └── README.md            # 服务端完整文档
+└── README.md                # 本文件
 ```
 
----
+## 致谢
 
-## 接口对照表（WeiboApi.kt ↔ weibo-crawler/weibo.py）
-
-当 weibo-crawler 更新时，优先检查下表中对应的行号范围。
-
-| WeiboApi.kt 方法 | 功能 | weibo.py 对应位置 |
-|---|---|---|
-| `getUserInfo()` | 获取用户信息 | `get_user_info()` **L781**，containerid `100505{uid}` **L783** |
-| `getUserPosts()` | 获取用户微博列表 | `get_weibo_json()` **L606**，containerid `230413{uid}` **L616** |
-| `getFollowingList()` | 获取用户的关注列表 | 无独立函数，containerid `231051_-_followers_-_{uid}` |
-| `getComments()`（有 Cookie） | 热门评论分页 | `_get_weibo_comments_cookie()` **L1712**，URL `hotflow?max_id_type=0` **L1729** |
-| `getComments()`（无 Cookie） | 评论基础接口 | `_get_weibo_comments_nocookie()` **L1778**，URL `comments/show` **L1791** |
-| `searchUsers()`（有 Cookie） | 关键词搜索，走 API | `get_weibo_json()` **L606**，containerid `100103type=3&q=` **L612** |
-| `searchUsersByWeb()`（无 Cookie） | 关键词搜索，解析 `s.weibo.com/user` HTML | 无对应（WeiboX 独有） |
-| `getVisitorTokens()` | 访客 session 初始化 token | 无对应（WeiboX 独有，配合 WebView 实现） |
-| `parsePost()` | 解析单条微博字段 | `parse_weibo()` **L1536**，`attitudes_count` **L1568** / `comments_count` **L1571** / `reposts_count` **L1574** |
-| `parsePics()` | 解析图片列表 | `get_pics()` **L922**，`pic['large']['url']` **L933** |
-| `stripHtml()` | 去除正文 HTML 标签 | `remove_html_tag` **L57** |
-| Cookie / XSRF 初始化 | 解析并注入鉴权信息 | Cookie 清洗 **L150**，XSRF-TOKEN 提取 **L162** |
-| 请求头（UA / Referer / MWeibo-Pwa） | 模拟移动端浏览器 | User-Agent 随机 **L360**，Referer **L174** |
-
----
-
-## 根据 weibo-crawler 更新的维护方法
-
-### 何时需要同步
-
-微博偶尔会调整接口路径、返回字段或鉴权机制。weibo-crawler 作为活跃维护的项目，通常会率先修复。遇到以下情况时参照本流程同步：
-
-- WeiboX 请求返回 `ok=-100` 或频繁触发验证码
-- 某功能数据为空而 weibo-crawler 正常
-- weibo-crawler 发布了涉及接口调用的 commit
-
-### 同步流程
-
-**第一步：定位 weibo-crawler 的改动**
-
-```bash
-cd weibo-crawler
-git log --oneline -20
-git diff HEAD~1 HEAD weibo.py
-```
-
-**第二步：根据对照表找到 WeiboApi.kt 的对应位置**
-
-确认改动影响哪个方法，直接跳转到 `WeiboApi.kt` 中对应的函数。
-
-**第三步：逐项移植**
-
-| 改动类型 | weibo.py 常见位置 | WeiboApi.kt 处理位置 |
-|---|---|---|
-| 接口 URL / containerid 变更 | `get_weibo_json()` / `get_user_info()` | 对应 `suspend fun` 中的 `url` 字符串 |
-| 请求头字段增删 | `__init__` headers | `OkHttpClient` 拦截器中的 `.header(...)` |
-| Cookie / XSRF 鉴权逻辑 | L150–L165 | `cookieJar` 初始化 + `getXsrfToken()` |
-| 返回 JSON 字段改名 | `parse_weibo()` L1536 | `parsePost()` 中的 `optString / optInt` |
-| 图片字段结构变更 | `get_pics()` L922 | `parsePics()` |
-| 评论接口参数变更 | `_get_weibo_comments_cookie()` L1712 | `getComments()` 中的 URL 拼接 |
-
-**第四步：验证**
-
-1. 构建并安装到真机
-2. **访客模式**：冷启动 → 搜索用户 → 进入主页 → 查看微博 / 评论
-3. **完整模式**：配置 Cookie → 时间线自动刷新 → 热门评论可分页
-
----
+服务端的网络请求逻辑、接口地址、请求头与限流策略，参考自开源项目 **[dataabc/weibo-crawler](https://github.com/dataabc/weibo-crawler)**。WeiboX 服务端可理解为将其数据获取层用 Python 重新组织、并加上调度 / WebUI / 验证码交互 / API 的版本。感谢原项目作者的持续维护。
 
 ## Star History
 
-<a href="https://www.star-history.com/?repos=bidabrain%2FweiboX&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=bidabrain%2FweiboX-server&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=bidabrain/weiboX&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=bidabrain/weiboX&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=bidabrain/weiboX&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=bidabrain/weiboX-server&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=bidabrain/weiboX-server&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=bidabrain/weiboX-server&type=date&legend=top-left" />
  </picture>
 </a>
