@@ -1,0 +1,24 @@
+# 运行「已发布到 Docker Hub 的镜像」的全新实例。
+# 用法：在一个空目录里放这个文件，docker compose -f docker-compose.hub.yml up -d
+# 首次启动 data/ 为空 → 干净服务器：自己在 WebUI 新建 API Token、重新关注。
+services:
+  weibox-server:
+    image: ${WEIBOX_IMAGE:-YOUR_DOCKERHUB_USER/weibox-server:latest}
+    container_name: weibox-server
+    restart: unless-stopped
+    ports:
+      # 只绑回环，配合 cloudflared；想局域网直连改成 "8000:8000"
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./data:/data            # 全新空目录 → 干净实例
+    environment:
+      WEIBOX_ADMIN_PASSWORD: "${WEIBOX_ADMIN_PASSWORD:-change-me}"
+      WEIBOX_ENABLE_BROWSER: "true"
+      # 想要推送：把你自己 Firebase 项目的私钥放到 ./data/firebase-key.json
+    shm_size: "1gb"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s

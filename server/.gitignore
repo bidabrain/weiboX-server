@@ -1,0 +1,9 @@
+.venv/
+data/
+__pycache__/
+*.pyc
+.env
+*.log
+
+# LibreOffice 锁文件
+.~lock.*#

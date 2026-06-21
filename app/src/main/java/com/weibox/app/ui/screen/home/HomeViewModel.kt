@@ -10,8 +10,6 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-private const val REFRESH_INTERVAL_MS = 15 * 60 * 1000L  // 15 分钟
-
 data class HomeUiState(
     val posts: List<WeiboPost> = emptyList(),
     val isLoading: Boolean = false,
@@ -54,29 +52,26 @@ class HomeViewModel @Inject constructor(
             .onEach { t -> _state.update { it.copy(lastRefreshTime = t) } }
             .launchIn(viewModelScope)
 
-        viewModelScope.launch {
-            val lastRefresh = prefs.lastRefreshTime.first()
-            val elapsed = System.currentTimeMillis() - lastRefresh
-            if (elapsed > REFRESH_INTERVAL_MS) {
-                refresh()
-            } else {
-                _state.update { it.copy(isLoading = false) }
-            }
-        }
+        // 数据都在 server 上（server 扛防爬），app 拉的是已缓存数据，无防爬顾虑。
+        // 因此每次冷启动直接从 server 同步最新（顺带对齐关注列表），不再做 15 分钟节流。
+        refresh()
     }
 
     fun refresh() {
+        viewModelScope.launch { doRefresh() }
+    }
+
+    /** 挂起版刷新，下拉手势用它等本次刷新真正结束再收起指示器。 */
+    suspend fun doRefresh() {
         if (_state.value.isRefreshing) return  // 防止并发重复刷新
-        viewModelScope.launch {
-            _state.update { it.copy(isRefreshing = true, error = null) }
-            runCatching { repo.refreshTimeline() }
-                .onSuccess { posts ->
-                    prefs.saveLastRefreshTime(System.currentTimeMillis())
-                    _state.update { it.copy(currentPage = 1, hasMore = posts.isNotEmpty()) }
-                }
-                .onFailure { e -> _state.update { it.copy(error = e.message) } }
-            _state.update { it.copy(isRefreshing = false) }
-        }
+        _state.update { it.copy(isRefreshing = true, error = null) }
+        runCatching { repo.refreshTimeline() }
+            .onSuccess { posts ->
+                prefs.saveLastRefreshTime(System.currentTimeMillis())
+                _state.update { it.copy(currentPage = 1, hasMore = posts.isNotEmpty()) }
+            }
+            .onFailure { e -> _state.update { it.copy(error = e.message) } }
+        _state.update { it.copy(isRefreshing = false) }
     }
 
     fun toggleMode() {

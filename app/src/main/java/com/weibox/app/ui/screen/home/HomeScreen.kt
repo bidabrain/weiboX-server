@@ -6,14 +6,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.weibox.app.ui.components.PostCard
 import com.weibox.app.ui.components.WeiboTopBar
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onNavigateToProfile: (String) -> Unit,
@@ -22,6 +26,15 @@ fun HomeScreen(
 ) {
     val state by vm.state.collectAsState()
     val listState = rememberLazyListState()
+    val pullState = rememberPullToRefreshState()
+
+    // 下拉触发 → 跑挂起刷新 → 结束后收起指示器
+    if (pullState.isRefreshing) {
+        LaunchedEffect(true) {
+            vm.doRefresh()
+            pullState.endRefresh()
+        }
+    }
 
     LaunchedEffect(scrollToTopTrigger) {
         if (scrollToTopTrigger > 0) listState.animateScrollToItem(0)
@@ -52,7 +65,12 @@ fun HomeScreen(
             )
         }
     ) { padding ->
-        Box(Modifier.padding(padding).fillMaxSize()) {
+        Box(
+            Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .nestedScroll(pullState.nestedScrollConnection)
+        ) {
             when {
                 state.isLoading -> Box(
                     Modifier.fillMaxSize(),
@@ -88,6 +106,11 @@ fun HomeScreen(
                     }
                 }
             }
+
+            PullToRefreshContainer(
+                state = pullState,
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
 
             state.error?.let {
                 Snackbar(

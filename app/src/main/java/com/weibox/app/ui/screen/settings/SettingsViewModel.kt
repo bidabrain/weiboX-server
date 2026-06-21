@@ -10,10 +10,10 @@ import android.provider.MediaStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.weibox.app.R
+import com.weibox.app.data.api.ServerApi
 import com.weibox.app.data.prefs.AppPreferences
 import com.weibox.app.data.repository.WeiboRepository
-import com.weibox.app.data.webdav.WebDavService
-import com.weibox.app.worker.BackgroundRefreshWorker
+import com.weibox.app.fcm.FcmRegistrar
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -24,25 +24,16 @@ import java.io.File
 import java.io.FileOutputStream
 import javax.inject.Inject
 
-enum class WebDavOp { NONE, BACKING_UP, RESTORING }
-
 data class SettingsUiState(
-    val cookie: String = "",
-    val cookieInput: String = "",
-    val darkMode: Boolean = false,
+    val serverUrl: String = "",
+    val apiToken: String = "",
+    val serverUrlInput: String = "",
+    val apiTokenInput: String = "",
     val saved: Boolean = false,
-    // WebDAV
-    val webDavUrl: String = "",
-    val webDavUser: String = "",
-    val webDavPass: String = "",
-    val webDavUrlInput: String = "",
-    val webDavUserInput: String = "",
-    val webDavPassInput: String = "",
-    val webDavConfigSaved: Boolean = false,
-    val webDavOp: WebDavOp = WebDavOp.NONE,
-    val webDavMessage: String? = null,
-    val donateMessage: String? = null,
-    val backgroundRefreshEnabled: Boolean = false
+    val testing: Boolean = false,
+    val connectionMessage: String? = null,
+    val darkMode: Boolean = false,
+    val donateMessage: String? = null
 )
 
 @HiltViewModel
@@ -56,78 +47,43 @@ class SettingsViewModel @Inject constructor(
     val state: StateFlow<SettingsUiState> = _state.asStateFlow()
 
     init {
-        prefs.cookie.onEach  { c -> _state.update { it.copy(cookie = c, cookieInput = c) } }.launchIn(viewModelScope)
+        prefs.serverUrl.onEach { v -> _state.update { it.copy(serverUrl = v, serverUrlInput = v) } }.launchIn(viewModelScope)
+        prefs.apiToken.onEach { v -> _state.update { it.copy(apiToken = v, apiTokenInput = v) } }.launchIn(viewModelScope)
         prefs.darkMode.onEach { d -> _state.update { it.copy(darkMode = d) } }.launchIn(viewModelScope)
-        prefs.webDavUrl.onEach  { v -> _state.update { it.copy(webDavUrl = v, webDavUrlInput = v) } }.launchIn(viewModelScope)
-        prefs.webDavUser.onEach { v -> _state.update { it.copy(webDavUser = v, webDavUserInput = v) } }.launchIn(viewModelScope)
-        prefs.webDavPass.onEach { v -> _state.update { it.copy(webDavPass = v, webDavPassInput = v) } }.launchIn(viewModelScope)
-        prefs.backgroundRefreshEnabled.onEach { v -> _state.update { it.copy(backgroundRefreshEnabled = v) } }.launchIn(viewModelScope)
     }
 
-    // ── Cookie ───────────────────────────────────────────────────
-    fun onCookieInputChange(v: String) = _state.update { it.copy(cookieInput = v, saved = false) }
+    // ── 服务器配置 ───────────────────────────────────────────────
+    fun onServerUrlChange(v: String) = _state.update { it.copy(serverUrlInput = v, saved = false, connectionMessage = null) }
+    fun onApiTokenChange(v: String) = _state.update { it.copy(apiTokenInput = v, saved = false, connectionMessage = null) }
 
-    fun saveCookie() = viewModelScope.launch {
-        prefs.saveCookie(_state.value.cookieInput.trim())
+    fun saveServer() = viewModelScope.launch {
+        prefs.saveServer(_state.value.serverUrlInput.trim(), _state.value.apiTokenInput.trim())
         _state.update { it.copy(saved = true) }
+        // 配置好后立即上报 FCM 设备 token，启用验证码推送
+        FcmRegistrar.registerCurrentToken(repo, viewModelScope)
     }
 
-    fun clearCookie() = viewModelScope.launch {
-        prefs.saveCookie("")
-        _state.update { it.copy(cookieInput = "", saved = false) }
-    }
-
-    fun toggleDarkMode() = viewModelScope.launch { prefs.setDarkMode(!_state.value.darkMode) }
-
-    fun toggleBackgroundRefresh() = viewModelScope.launch {
-        val newValue = !_state.value.backgroundRefreshEnabled
-        prefs.setBackgroundRefreshEnabled(newValue)
-        if (!newValue) BackgroundRefreshWorker.cancel(context)
-    }
-
-    // ── WebDAV 配置 ──────────────────────────────────────────────
-    fun onWebDavUrlChange(v: String)  = _state.update { it.copy(webDavUrlInput = v, webDavConfigSaved = false) }
-    fun onWebDavUserChange(v: String) = _state.update { it.copy(webDavUserInput = v, webDavConfigSaved = false) }
-    fun onWebDavPassChange(v: String) = _state.update { it.copy(webDavPassInput = v, webDavConfigSaved = false) }
-
-    fun saveWebDavConfig() = viewModelScope.launch {
+    /** 用当前输入测试连接（调 /api/v1/status）。 */
+    fun testConnection() = viewModelScope.launch {
         val s = _state.value
-        prefs.saveWebDav(s.webDavUrlInput.trim(), s.webDavUserInput.trim(), s.webDavPassInput)
-        _state.update { it.copy(webDavConfigSaved = true, webDavMessage = null) }
-    }
-
-    // ── 备份 ─────────────────────────────────────────────────────
-    fun backup() = viewModelScope.launch {
-        val s = _state.value
-        if (s.webDavUrl.isBlank()) {
-            _state.update { it.copy(webDavMessage = "请先保存 WebDAV 配置") }
-            return@launch
-        }
-        _state.update { it.copy(webDavOp = WebDavOp.BACKING_UP, webDavMessage = null) }
-
-        val users  = repo.getFollowedUsers().first()
-        val cookie = prefs.cookie.first()
-        if (users.isEmpty() && cookie.isBlank()) {
-            _state.update { it.copy(webDavOp = WebDavOp.NONE, webDavMessage = "关注列表和 Cookie 均为空，无需备份") }
-            return@launch
-        }
-
+        _state.update { it.copy(testing = true, connectionMessage = null) }
         val result = withContext(Dispatchers.IO) {
-            WebDavService(s.webDavUrl, s.webDavUser, s.webDavPass).backup(users, cookie)
+            runCatching {
+                ServerApi(s.serverUrlInput.trim(), s.apiTokenInput.trim()).getFollowedUsers()
+            }
         }
         _state.update {
             it.copy(
-                webDavOp = WebDavOp.NONE,
-                webDavMessage = result.fold(
-                    onSuccess = {
-                        "备份成功：${users.size} 位用户" +
-                        if (cookie.isNotBlank()) " + Cookie" else ""  + " 已上传"
-                    },
-                    onFailure = { e -> "备份失败：${e.message}" }
+                testing = false,
+                connectionMessage = result.fold(
+                    onSuccess = { users -> "连接成功：已关注 ${users.size} 位用户" },
+                    onFailure = { e -> "连接失败：${e.message}" }
                 )
             )
         }
     }
+
+    fun toggleDarkMode() = viewModelScope.launch { prefs.setDarkMode(!_state.value.darkMode) }
 
     // ── 支持开发者 ────────────────────────────────────────────────
     fun savePayQrCode() = viewModelScope.launch(Dispatchers.IO) {
@@ -157,39 +113,6 @@ class SettingsViewModel @Inject constructor(
         }.fold(
             onSuccess = { _state.update { it.copy(donateMessage = "二维码已保存到相册") } },
             onFailure = { e -> _state.update { it.copy(donateMessage = "保存失败：${e.message}") } }
-        )
-    }
-
-    // ── 恢复 ─────────────────────────────────────────────────────
-    fun restore() = viewModelScope.launch {
-        val s = _state.value
-        if (s.webDavUrl.isBlank()) {
-            _state.update { it.copy(webDavMessage = "请先保存 WebDAV 配置") }
-            return@launch
-        }
-        _state.update { it.copy(webDavOp = WebDavOp.RESTORING, webDavMessage = null) }
-
-        val result = withContext(Dispatchers.IO) {
-            WebDavService(s.webDavUrl, s.webDavUser, s.webDavPass).restore()
-        }
-
-        result.fold(
-            onSuccess = { (users, cookie) ->
-                users.forEach { repo.followUser(it) }
-                if (cookie.isNotBlank()) prefs.saveCookie(cookie)
-                _state.update {
-                    it.copy(
-                        webDavOp = WebDavOp.NONE,
-                        webDavMessage = "恢复成功：已导入 ${users.size} 位用户" +
-                                if (cookie.isNotBlank()) " + Cookie" else ""
-                    )
-                }
-            },
-            onFailure = { e ->
-                _state.update {
-                    it.copy(webDavOp = WebDavOp.NONE, webDavMessage = "恢复失败：${e.message}")
-                }
-            }
         )
     }
 }

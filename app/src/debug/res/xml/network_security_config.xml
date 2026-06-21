@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 仅 debug 版生效：允许明文 HTTP，便于在局域网直连本地 server 联调。
+     release 版不含此文件，仍由 main 的 usesCleartextTraffic="false" 强制 HTTPS。 -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

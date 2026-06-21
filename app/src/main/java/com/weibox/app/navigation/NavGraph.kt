@@ -11,8 +11,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.ViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -21,23 +19,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.weibox.app.data.session.CaptchaManager
-import com.weibox.app.data.session.VisitorSession
-import com.weibox.app.ui.components.CaptchaDialog
 import com.weibox.app.ui.screen.following.FollowingScreen
 import com.weibox.app.ui.screen.followinglist.FollowingListScreen
 import com.weibox.app.ui.screen.home.HomeScreen
 import com.weibox.app.ui.screen.profile.ProfileScreen
 import com.weibox.app.ui.screen.search.SearchScreen
 import com.weibox.app.ui.screen.settings.SettingsScreen
-import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
-
-@HiltViewModel
-class NavViewModel @Inject constructor(
-    val captchaManager: CaptchaManager,
-    val visitorSession: VisitorSession
-) : ViewModel()
 
 private sealed class Tab(val route: String, val label: String, val icon: ImageVector) {
     object Home      : Tab("home",      "时间线",   Icons.Filled.Home)
@@ -50,20 +37,6 @@ private val tabs = listOf(Tab.Home, Tab.Search, Tab.Following, Tab.Settings)
 
 @Composable
 fun AppNavGraph() {
-    val vm: NavViewModel = hiltViewModel()
-    val captchaUrl by vm.captchaManager.pendingUrl.collectAsState()
-
-    captchaUrl?.let { url ->
-        CaptchaDialog(
-            captchaUrl = url,
-            onSolved = { newCookies ->
-                vm.visitorSession.update(newCookies)
-                vm.captchaManager.resolve()
-            },
-            onDismiss = { vm.captchaManager.resolve() }
-        )
-    }
-
     val navController = rememberNavController()
     val backStack by navController.currentBackStackEntryAsState()
     val currentDest = backStack?.destination

@@ -1,48 +1,18 @@
 package com.weibox.app
 
 import android.app.Application
-import androidx.hilt.work.HiltWorkerFactory
-import androidx.lifecycle.DefaultLifecycleObserver
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.ProcessLifecycleOwner
-import androidx.lifecycle.lifecycleScope
-import androidx.work.Configuration
 import coil.Coil
 import coil.ImageLoader
-import com.weibox.app.data.prefs.AppPreferences
-import com.weibox.app.worker.BackgroundRefreshWorker
 import dagger.hilt.android.HiltAndroidApp
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
-import javax.inject.Inject
 
 @HiltAndroidApp
-class WeiboXApp : Application(), Configuration.Provider {
-
-    @Inject lateinit var workerFactory: HiltWorkerFactory
-    @Inject lateinit var prefs: AppPreferences
-
-    override val workManagerConfiguration: Configuration
-        get() = Configuration.Builder().setWorkerFactory(workerFactory).build()
+class WeiboXApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
 
-        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
-            override fun onStart(owner: LifecycleOwner) {
-                BackgroundRefreshWorker.cancel(this@WeiboXApp)
-            }
-
-            override fun onStop(owner: LifecycleOwner) {
-                ProcessLifecycleOwner.get().lifecycleScope.launch {
-                    if (prefs.backgroundRefreshEnabled.first()) {
-                        BackgroundRefreshWorker.schedule(this@WeiboXApp)
-                    }
-                }
-            }
-        })
-
+        // 图片直连微博加载（方案 A）：带 Referer / UA 绕过 sinaimg 防盗链
         Coil.setImageLoader(
             ImageLoader.Builder(this)
                 .okHttpClient {

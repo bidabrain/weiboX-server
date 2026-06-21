@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WeiboX Server</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <!-- 登录 -->
+  <div id="login-view" class="view hidden">
+    <form id="login-form" class="card login-card">
+      <h1>WeiboX Server</h1>
+      <p class="muted">第三方微博抓取服务 · 管理后台</p>
+      <input id="login-password" type="password" placeholder="管理密码" autocomplete="current-password" />
+      <button type="submit">登录</button>
+      <div id="login-error" class="error"></div>
+    </form>
+  </div>
+
+  <!-- 主界面 -->
+  <div id="main-view" class="view hidden">
+    <header class="topbar">
+      <div class="brand">WeiboX <span class="muted">Server</span></div>
+      <nav class="tabs">
+        <button class="tab active" data-tab="dashboard">状态</button>
+        <button class="tab" data-tab="timeline">时间线</button>
+        <button class="tab" data-tab="following">关注管理</button>
+        <button class="tab" data-tab="settings">设置</button>
+      </nav>
+      <button id="logout-btn" class="ghost">退出</button>
+    </header>
+
+    <!-- 验证码横幅 -->
+    <div id="captcha-banner" class="banner hidden">
+      ⚠️ 检测到微博验证码限制，抓取已暂停
+      <button id="open-captcha">打开验证窗口手动处理</button>
+    </div>
+
+    <main class="content">
+      <!-- 状态 -->
+      <section id="tab-dashboard" class="tab-panel">
+        <div class="grid">
+          <div class="card stat"><div class="stat-label">抓取开关</div><div id="st-enabled" class="stat-value">—</div></div>
+          <div class="card stat"><div class="stat-label">当前状态</div><div id="st-running" class="stat-value">—</div></div>
+          <div class="card stat"><div class="stat-label">本轮进度</div><div id="st-progress" class="stat-value">—</div></div>
+          <div class="card stat"><div class="stat-label">缓存微博</div><div id="st-posts" class="stat-value">—</div></div>
+          <div class="card stat"><div class="stat-label">上轮新增</div><div id="st-new" class="stat-value">—</div></div>
+          <div class="card stat"><div class="stat-label">下轮抓取</div><div id="st-next" class="stat-value">—</div></div>
+        </div>
+        <div class="card">
+          <div class="row">
+            <button id="scrape-now">立即抓取一轮</button>
+            <span id="st-current" class="muted"></span>
+          </div>
+          <div id="st-error" class="error"></div>
+        </div>
+        <div class="card">
+          <h3>对外 API</h3>
+          <p class="muted">第三方客户端用 Bearer Token 调用。Token 见服务器 <code>data/api_token.txt</code>。</p>
+          <ul class="api-list">
+            <li><code>GET /api/v1/timeline?limit=50&amp;offset=0</code> — 聚合时间线</li>
+            <li><code>GET /api/v1/users</code> — 关注列表</li>
+            <li><code>GET /api/v1/users/{uid}/posts</code> — 某用户微博</li>
+            <li><code>GET /api/v1/status</code> — 抓取状态</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- 时间线 -->
+      <section id="tab-timeline" class="tab-panel hidden">
+        <div class="row"><button id="reload-timeline">刷新</button></div>
+        <div id="timeline-list" class="feed"></div>
+      </section>
+
+      <!-- 关注管理 -->
+      <section id="tab-following" class="tab-panel hidden">
+        <div class="card">
+          <h3>搜索用户</h3>
+          <form id="search-form" class="row">
+            <input id="search-input" placeholder="关键词或数字 UID" />
+            <button type="submit">搜索</button>
+          </form>
+          <div id="search-results" class="user-list"></div>
+        </div>
+        <div class="card">
+          <h3>已关注 <span id="following-count" class="muted"></span></h3>
+          <div id="following-list" class="user-list"></div>
+        </div>
+      </section>
+
+      <!-- 设置 -->
+      <section id="tab-settings" class="tab-panel hidden">
+        <form id="settings-form">
+          <div class="card">
+            <h3>微博 Cookie</h3>
+            <p class="muted">主登录方式。留空走访客模式（仅基础功能）。</p>
+            <textarea id="set-cookie" rows="3" placeholder="SUB=...; SUBP=...; ..."></textarea>
+          </div>
+          <div class="card">
+            <h3>API Token（给 app 用）</h3>
+            <p class="muted">app 连接服务器时填：<b>服务器地址 + 下面任一 Token</b>。可随时新建或删除，丢失了删掉即可。</p>
+            <div id="token-list" class="token-list"></div>
+            <div class="row">
+              <input id="token-label" placeholder="备注名（如：我的手机）" />
+              <button type="button" id="token-create">新建 Token</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3>抓取参数</h3>
+            <label>定时抓取 <input type="checkbox" id="set-scrape_enabled" /></label>
+            <label>每轮间隔（秒）<input type="number" id="set-round_interval_sec" min="30" /></label>
+            <label>请求最小延迟（秒）<input type="number" id="set-req_delay_min_sec" min="1" /></label>
+            <label>请求最大延迟（秒）<input type="number" id="set-req_delay_max_sec" min="1" /></label>
+            <label>每用户抓取条数 <input type="number" id="set-posts_per_user" min="1" max="50" /></label>
+            <label>跳过间隔（秒）<input type="number" id="set-min_check_interval_sec" min="0" /></label>
+            <label>微博保留天数 <input type="number" id="set-post_retention_days" min="0" /></label>
+            <label>缓存上限（条）<input type="number" id="set-max_cached_posts" min="0" /></label>
+          </div>
+          <div class="card">
+            <h3>WebDAV 备份</h3>
+            <p class="muted">与安卓 app 格式兼容（仅备份关注列表 + Cookie）。</p>
+            <label>地址 <input type="text" id="set-webdav_url" placeholder="https://dav.example.com/weibox" /></label>
+            <label>用户名 <input type="text" id="set-webdav_user" /></label>
+            <label>密码 <input type="password" id="set-webdav_pass" /></label>
+            <div class="row">
+              <button type="button" id="webdav-backup">立即备份</button>
+              <button type="button" id="webdav-restore">从备份恢复</button>
+              <label class="inline"><input type="checkbox" id="restore-cookie" /> 恢复时一并导入 Cookie</label>
+            </div>
+            <div id="webdav-msg" class="muted"></div>
+          </div>
+          <div class="row">
+            <button type="submit">保存设置</button>
+            <span id="settings-msg" class="muted"></span>
+          </div>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <!-- 用户主页弹窗 -->
+  <div id="profile-modal" class="modal hidden">
+    <div class="modal-box profile-box">
+      <div class="modal-head">
+        <span>用户主页</span>
+        <button id="profile-close" class="ghost">×</button>
+      </div>
+      <div id="profile-header"></div>
+      <div class="profile-tabs">
+        <button class="ptab active" data-ptab="posts">TA 的微博</button>
+        <button class="ptab" data-ptab="following">TA 的关注</button>
+      </div>
+      <div id="profile-body"></div>
+    </div>
+  </div>
+
+  <!-- 验证码弹窗 -->
+  <div id="captcha-modal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-head">
+        <span>人工处理微博验证码</span>
+        <button id="captcha-close" class="ghost">×</button>
+      </div>
+      <p class="muted small">在下方画面里直接点击 / 拖动滑块完成验证，再点「完成验证」。</p>
+      <div class="captcha-stage">
+        <canvas id="captcha-canvas" width="390" height="760"></canvas>
+        <div id="captcha-loading" class="captcha-loading">等待验证码页面…</div>
+      </div>
+      <div class="row">
+        <button id="captcha-resolve">完成验证</button>
+        <button id="captcha-reload" class="ghost">刷新页面</button>
+        <button id="captcha-cancel" class="ghost">取消本轮</button>
+      </div>
+      <div id="captcha-url" class="muted small"></div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

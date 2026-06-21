@@ -1,0 +1,25 @@
+services:
+  weibox-server:
+    build: .
+    container_name: weibox-server
+    restart: unless-stopped
+    ports:
+      # 只绑回环：cloudflared 连 localhost:8000 即可，端口不暴露到公网接口
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./data:/data
+    environment:
+      # ⚠️ 部署前设置：在 server/.env 写 WEIBOX_ADMIN_PASSWORD=你的密码（compose 自动读取）
+      WEIBOX_ADMIN_PASSWORD: "${WEIBOX_ADMIN_PASSWORD:-change-me}"
+      # API Token 在 WebUI「设置 → API Token」里管理；下面可选设一个固定主令牌
+      # WEIBOX_API_TOKEN: ""
+      WEIBOX_ENABLE_BROWSER: "true"
+      # FCM 私钥放在 ./data/firebase-key.json 即自动启用推送（已随 data 卷挂载）
+    # Playwright/Chromium 需要较大的 /dev/shm
+    shm_size: "1gb"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
