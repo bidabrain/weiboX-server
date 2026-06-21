@@ -24,6 +24,8 @@ android {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // 用 debug 签名给 release 包签名（仅自用 / 侧载；不能上架 Google Play）
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
