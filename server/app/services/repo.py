@@ -30,6 +30,7 @@ def user_to_dict(u: FollowedUser) -> dict:
         "verified_reason": u.verified_reason,
         "special": u.special,
         "last_fetched_at": u.last_fetched_at,
+        "last_pushed_ts": u.last_pushed_ts,
     }
 
 
@@ -158,6 +159,15 @@ def update_last_fetched(user_id: str, ts: int) -> None:
             s.commit()
 
 
+def set_last_pushed_ts(user_id: str, ts: int) -> None:
+    """推进特别关注推送高水位线（只增不减）。"""
+    with get_session() as s:
+        u = s.get(FollowedUser, user_id)
+        if u and ts > (u.last_pushed_ts or 0):
+            u.last_pushed_ts = ts
+            s.commit()
+
+
 def backfill_profile(user_id: str, name: str, avatar: str) -> None:
     """关注列表里资料为空时（如仅按 UID 关注），用抓到的微博作者信息补全。"""
     if not name and not avatar:
@@ -229,6 +239,7 @@ def save_posts(posts: List[dict]) -> List[str]:
                 reposts_count=p.get("reposts_count", 0),
                 source=p.get("source", ""),
                 is_retweet=p.get("is_retweet", False),
+                is_top=p.get("is_top", False),
                 retweet_json=json.dumps(p["retweet"], ensure_ascii=False) if p.get("retweet") else "",
                 fetched_at=ts,
             )
@@ -268,14 +279,18 @@ def trim_posts(retention_days: int, max_posts: int) -> None:
     with get_session() as s:
         if retention_days > 0:
             cutoff = now_ms() - retention_days * 24 * 3600 * 1000
-            s.execute(delete(Post).where(Post.created_at_ts < cutoff, Post.created_at_ts > 0))
+            # 置顶帖（is_top）发布时间往往很旧，跳过以免被反复删除/抓回触发误推
+            s.execute(delete(Post).where(
+                Post.created_at_ts < cutoff, Post.created_at_ts > 0, Post.is_top == False
+            ))
             s.commit()
         if max_posts > 0:
             count = s.execute(select(func.count(Post.id))).scalar() or 0
             if count > max_posts:
                 excess = count - max_posts
                 old_ids = s.execute(
-                    select(Post.id).order_by(Post.created_at_ts.asc()).limit(excess)
+                    select(Post.id).where(Post.is_top == False)
+                    .order_by(Post.created_at_ts.asc()).limit(excess)
                 ).scalars().all()
                 if old_ids:
                     s.execute(delete(Post).where(Post.id.in_(old_ids)))

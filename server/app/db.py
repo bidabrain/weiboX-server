@@ -47,10 +47,21 @@ def _migrate() -> None:
     insp = inspect(engine)
     if "followed_users" in insp.get_table_names():
         cols = {c["name"] for c in insp.get_columns("followed_users")}
-        if "special" not in cols:
-            with engine.begin() as conn:
+        with engine.begin() as conn:
+            if "special" not in cols:
                 conn.execute(text(
                     "ALTER TABLE followed_users ADD COLUMN special BOOLEAN DEFAULT 0 NOT NULL"
+                ))
+            if "last_pushed_ts" not in cols:
+                conn.execute(text(
+                    "ALTER TABLE followed_users ADD COLUMN last_pushed_ts INTEGER DEFAULT 0 NOT NULL"
+                ))
+    if "posts" in insp.get_table_names():
+        cols = {c["name"] for c in insp.get_columns("posts")}
+        if "is_top" not in cols:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "ALTER TABLE posts ADD COLUMN is_top BOOLEAN DEFAULT 0 NOT NULL"
                 ))
 
 

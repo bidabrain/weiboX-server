@@ -145,8 +145,8 @@ class Scraper:
         self.status.last_error = ""
         self.status.progress_total = len(candidates)
         self.status.progress_done = 0
-        self.status.last_round_new_posts = 0
-        self.status.last_round_new_hot = 0
+        # 注意：不在此处清零 last_round_new_posts/hot——本轮跑完前仍显示「上一轮」的
+        # 结果，否则一轮耗时数分钟内 WebUI 会一直读到 0。最终值在 finally 里统一写入。
 
         hot_enabled = store.get_bool("hot_enabled")
         if not candidates and not hot_enabled:
@@ -160,6 +160,7 @@ class Scraper:
         delay_max = max(delay_min, store.get_int("req_delay_max_sec"))
         count = max(1, store.get_int("posts_per_user"))
         new_total = 0
+        new_hot_total = 0
 
         # 特别关注：本轮开始前的快照，用于判断"新帖" + "是否首次回填"
         users_info = {u["id"]: u for u in repo.list_users()}
@@ -188,20 +189,33 @@ class Scraper:
                     break
                 if posts:
                     new_ids = repo.save_posts(posts)
-                    new_total += len(posts)
+                    new_total += len(new_ids)  # 只计真正新增（DB 原先没有），不含重复抓回的
                     name = posts[0].get("user_name", "")
                     repo.backfill_profile(uid, name, posts[0].get("user_avatar", ""))
-                    # 特别关注：有新帖且非首次回填（之前抓过）才推送，避免首关刷屏
-                    if uid in special_ids and new_ids:
-                        prior = users_info.get(uid, {}).get("last_fetched_at") or 0
-                        if prior > 0:
-                            push_name = name or users_info.get(uid, {}).get("screen_name", "")
-                            try:
-                                await asyncio.to_thread(
-                                    push.notify_new_posts, push_name, len(new_ids), uid
-                                )
-                            except Exception:
-                                pass
+                    # 特别关注推送：以「已推送过的最新发帖时间」为高水位线，只推比它
+                    # 更新的非置顶帖。既避免首关刷屏，也避免被 trim 删后又抓回的老帖
+                    # （如置顶微博）反复误报。首次（hwm==0）只建立基线、不推送。
+                    if uid in special_ids:
+                        info = users_info.get(uid, {})
+                        hwm = info.get("last_pushed_ts") or 0
+                        normal = [p for p in posts if not p.get("is_top")]
+                        newest = max((p.get("created_at_ts") or 0 for p in normal), default=0)
+                        if hwm > 0:
+                            new_set = set(new_ids)
+                            fresh = [
+                                p for p in normal
+                                if p.get("id") in new_set and (p.get("created_at_ts") or 0) > hwm
+                            ]
+                            if fresh:
+                                push_name = name or info.get("screen_name", "")
+                                try:
+                                    await asyncio.to_thread(
+                                        push.notify_new_posts, push_name, len(fresh), uid
+                                    )
+                                except Exception:
+                                    pass
+                        if newest > hwm:
+                            repo.set_last_pushed_ts(uid, newest)
                 repo.update_last_fetched(uid, int(time.time() * 1000))
                 self.status.progress_done = index + 1
 
@@ -218,13 +232,14 @@ class Scraper:
                     hot = await self._fetch_hot(client)
                 if isinstance(hot, list) and hot:
                     repo.save_hot_posts(hot)
-                    self.status.last_round_new_hot = len(hot)
+                    new_hot_total = len(hot)
         finally:
             await client.aclose()
             retention = store.get_int("post_retention_days")
             repo.trim_posts(retention, store.get_int("max_cached_posts"))
             repo.trim_hot_posts(retention, store.get_int("max_cached_hot"))
             self.status.last_round_new_posts = new_total
+            self.status.last_round_new_hot = new_hot_total
             self.status.current_user = ""
             self.status.round_running = False
             self.status.last_round_finished = int(time.time() * 1000)

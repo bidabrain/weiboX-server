@@ -89,6 +89,8 @@ def parse_post(mblog: dict) -> dict:
         "reposts_count": _to_int(mblog.get("reposts_count")),
         "source": strip_html(mblog.get("source", "") or ""),
         "is_retweet": retweeted is not None,
+        # 微博主页置顶帖标记 isTop=1：发布时间往往很旧，需单独处理以免被反复 trim/误推
+        "is_top": bool(mblog.get("isTop", 0)),
         "retweet": parse_post(retweeted) if retweeted else None,
     }
 

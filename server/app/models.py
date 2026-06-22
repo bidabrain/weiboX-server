@@ -34,6 +34,9 @@ class FollowedUser(Base):
     last_fetched_at: Mapped[int] = mapped_column(Integer, default=0)
     added_at: Mapped[int] = mapped_column(Integer, default=0)
 
+    # 特别关注推送高水位线：已推送过的最新发帖时间，只推比它更新的帖子
+    last_pushed_ts: Mapped[int] = mapped_column(Integer, default=0)
+
 
 class Post(Base):
     __tablename__ = "posts"
@@ -51,6 +54,7 @@ class Post(Base):
     reposts_count: Mapped[int] = mapped_column(Integer, default=0)
     source: Mapped[str] = mapped_column(String, default="")
     is_retweet: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_top: Mapped[bool] = mapped_column(Boolean, default=False)  # 置顶微博：trim 时跳过，不参与推送
     retweet_json: Mapped[str] = mapped_column(Text, default="")  # 序列化的转发原文
     fetched_at: Mapped[int] = mapped_column(Integer, default=0)
 
