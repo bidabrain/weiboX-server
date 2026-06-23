@@ -34,6 +34,8 @@ data class SettingsUiState(
     val testing: Boolean = false,
     val connectionMessage: String? = null,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val captchaNotifEnabled: Boolean = true,
+    val specialNotifEnabled: Boolean = true,
     val donateMessage: String? = null
 )
 
@@ -51,6 +53,8 @@ class SettingsViewModel @Inject constructor(
         prefs.serverUrl.onEach { v -> _state.update { it.copy(serverUrl = v, serverUrlInput = v) } }.launchIn(viewModelScope)
         prefs.apiToken.onEach { v -> _state.update { it.copy(apiToken = v, apiTokenInput = v) } }.launchIn(viewModelScope)
         prefs.themeMode.onEach { m -> _state.update { it.copy(themeMode = m) } }.launchIn(viewModelScope)
+        prefs.captchaNotifEnabled.onEach { v -> _state.update { it.copy(captchaNotifEnabled = v) } }.launchIn(viewModelScope)
+        prefs.specialNotifEnabled.onEach { v -> _state.update { it.copy(specialNotifEnabled = v) } }.launchIn(viewModelScope)
     }
 
     // ── 服务器配置 ───────────────────────────────────────────────
@@ -85,6 +89,17 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setThemeMode(mode: ThemeMode) = viewModelScope.launch { prefs.setThemeMode(mode) }
+
+    // ── 通知开关 ─────────────────────────────────────────────────
+    // 写入本地后再把最新开关上报 server，让 server 据此决定是否对本设备发送
+    fun setCaptchaNotifEnabled(enabled: Boolean) = viewModelScope.launch {
+        prefs.setCaptchaNotifEnabled(enabled)
+        FcmRegistrar.registerCurrentToken(repo, viewModelScope)
+    }
+    fun setSpecialNotifEnabled(enabled: Boolean) = viewModelScope.launch {
+        prefs.setSpecialNotifEnabled(enabled)
+        FcmRegistrar.registerCurrentToken(repo, viewModelScope)
+    }
 
     // ── 支持开发者 ────────────────────────────────────────────────
     fun savePayQrCode() = viewModelScope.launch(Dispatchers.IO) {

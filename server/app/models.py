@@ -102,6 +102,10 @@ class DeviceToken(Base):
     created_at: Mapped[int] = mapped_column(Integer, default=0)
     last_seen: Mapped[int] = mapped_column(Integer, default=0)
 
+    # 每类通知的开关（app 上报，默认开）：关掉后服务器对该设备跳过发送
+    notif_captcha: Mapped[bool] = mapped_column(Boolean, default=True)
+    notif_special: Mapped[bool] = mapped_column(Boolean, default=True)
+
 
 class ApiToken(Base):
     """对外 API 访问令牌，WebUI 里可新建/删除。app 填其中任一即可连。"""

@@ -80,10 +80,14 @@ class WeiboRepository @Inject constructor(
     suspend fun searchUsers(query: String, page: Int = 1): List<WeiboUser> =
         api().searchUsers(query, page)
 
-    /** 上报 FCM 设备 token（server 未配置时静默跳过）。 */
+    /** 上报 FCM 设备 token + 通知开关（server 未配置时静默跳过）。 */
     suspend fun registerDevice(fcmToken: String) {
         if (prefs.serverUrl.first().isBlank() || prefs.apiToken.first().isBlank()) return
-        runCatching { api().registerDevice(fcmToken, android.os.Build.MODEL ?: "") }
+        val notifCaptcha = prefs.captchaNotifEnabled.first()
+        val notifSpecial = prefs.specialNotifEnabled.first()
+        runCatching {
+            api().registerDevice(fcmToken, android.os.Build.MODEL ?: "", notifCaptcha, notifSpecial)
+        }
     }
 
     // ── 时间线（缓存）─────────────────────────────────────────────

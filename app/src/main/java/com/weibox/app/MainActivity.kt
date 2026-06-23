@@ -1,6 +1,7 @@
 package com.weibox.app
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -13,6 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.weibox.app.data.prefs.AppPreferences
@@ -35,9 +37,15 @@ class MainActivity : ComponentActivity() {
 
     private var lastBackPressedTime = 0L
 
+    /** 点击特别关注通知后待跳转的用户 id；由 NavGraph 消费后置空。 */
+    private val pendingProfileUserId = mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // 处理冷启动时通知携带的跳转目标
+        consumeProfileIntent(intent)
 
         // Android 13+ 通知权限（用于验证码提醒）
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -73,8 +81,29 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.DARK   -> true
             }
             WeiboXTheme(darkTheme = darkTheme) {
-                AppNavGraph()
+                AppNavGraph(
+                    pendingProfileUserId = pendingProfileUserId.value,
+                    onPendingProfileConsumed = { pendingProfileUserId.value = null }
+                )
             }
         }
+    }
+
+    /** app 已在运行时（singleTop）再次点击通知，走这里。 */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        consumeProfileIntent(intent)
+    }
+
+    private fun consumeProfileIntent(intent: Intent?) {
+        val uid = intent?.getStringExtra(EXTRA_PROFILE_USER_ID)
+        if (!uid.isNullOrEmpty()) {
+            pendingProfileUserId.value = uid
+        }
+    }
+
+    companion object {
+        const val EXTRA_PROFILE_USER_ID = "profile_user_id"
     }
 }

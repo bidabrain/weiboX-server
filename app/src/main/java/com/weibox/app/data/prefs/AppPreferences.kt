@@ -16,6 +16,8 @@ private val KEY_API_TOKEN     = stringPreferencesKey("api_token")
 private val KEY_DARK_MODE     = booleanPreferencesKey("dark_mode")   // 旧版开关，仅用于迁移
 private val KEY_THEME_MODE    = stringPreferencesKey("theme_mode")
 private val KEY_LAST_REFRESH  = longPreferencesKey("last_refresh")
+private val KEY_NOTIF_CAPTCHA = booleanPreferencesKey("notif_captcha")  // 验证码通知开关
+private val KEY_NOTIF_SPECIAL = booleanPreferencesKey("notif_special")  // 特别关注通知开关
 
 /** 主题模式：跟随系统 / 强制浅色 / 强制深色。 */
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
@@ -25,6 +27,11 @@ class AppPreferences(private val context: Context) {
     val serverUrl: Flow<String>     = context.dataStore.data.map { it[KEY_SERVER_URL] ?: "" }
     val apiToken: Flow<String>      = context.dataStore.data.map { it[KEY_API_TOKEN] ?: "" }
     val lastRefreshTime: Flow<Long> = context.dataStore.data.map { it[KEY_LAST_REFRESH] ?: 0L }
+
+    /** 验证码通知开关，默认开启。 */
+    val captchaNotifEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_NOTIF_CAPTCHA] ?: true }
+    /** 特别关注通知开关，默认开启。 */
+    val specialNotifEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_NOTIF_SPECIAL] ?: true }
 
     val themeMode: Flow<ThemeMode> = context.dataStore.data.map { p ->
         when (p[KEY_THEME_MODE]) {
@@ -53,4 +60,10 @@ class AppPreferences(private val context: Context) {
 
     suspend fun saveLastRefreshTime(time: Long) =
         context.dataStore.edit { it[KEY_LAST_REFRESH] = time }
+
+    suspend fun setCaptchaNotifEnabled(enabled: Boolean) =
+        context.dataStore.edit { it[KEY_NOTIF_CAPTCHA] = enabled }
+
+    suspend fun setSpecialNotifEnabled(enabled: Boolean) =
+        context.dataStore.edit { it[KEY_NOTIF_SPECIAL] = enabled }
 }

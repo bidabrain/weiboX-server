@@ -63,6 +63,17 @@ def _migrate() -> None:
                 conn.execute(text(
                     "ALTER TABLE posts ADD COLUMN is_top BOOLEAN DEFAULT 0 NOT NULL"
                 ))
+    if "device_tokens" in insp.get_table_names():
+        cols = {c["name"] for c in insp.get_columns("device_tokens")}
+        with engine.begin() as conn:
+            if "notif_captcha" not in cols:
+                conn.execute(text(
+                    "ALTER TABLE device_tokens ADD COLUMN notif_captcha BOOLEAN DEFAULT 1 NOT NULL"
+                ))
+            if "notif_special" not in cols:
+                conn.execute(text(
+                    "ALTER TABLE device_tokens ADD COLUMN notif_special BOOLEAN DEFAULT 1 NOT NULL"
+                ))
 
 
 def get_session() -> Session:

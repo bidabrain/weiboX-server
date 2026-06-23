@@ -140,9 +140,18 @@ class ServerApi(baseUrl: String, private val token: String) {
     }
 
     // ── FCM 设备注册 ──────────────────────────────────────────────
-    suspend fun registerDevice(deviceToken: String, label: String = ""): Unit = withContext(Dispatchers.IO) {
+    suspend fun registerDevice(
+        deviceToken: String,
+        label: String = "",
+        notifCaptcha: Boolean = true,
+        notifSpecial: Boolean = true
+    ): Unit = withContext(Dispatchers.IO) {
         val url = urlBuilder("/devices").build()
-        val body = JSONObject().put("token", deviceToken).put("label", label)
+        val body = JSONObject()
+            .put("token", deviceToken)
+            .put("label", label)
+            .put("notif_captcha", notifCaptcha)
+            .put("notif_special", notifSpecial)
             .toString().toRequestBody(jsonMedia)
         execute(authed(Request.Builder().url(url)).post(body).build())
     }

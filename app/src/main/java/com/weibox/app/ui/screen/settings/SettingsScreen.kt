@@ -121,6 +121,25 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
 
             HorizontalDivider()
 
+            // ── 通知管理 ──────────────────────────────────────────
+            SectionTitle("通知管理")
+            NotificationToggle(
+                icon = Icons.Filled.Security,
+                title = "验证码通知",
+                subtitle = "抓取被拦截、需要人工过验证码时提醒",
+                checked = state.captchaNotifEnabled,
+                onCheckedChange = vm::setCaptchaNotifEnabled
+            )
+            NotificationToggle(
+                icon = Icons.Filled.Star,
+                title = "特别关注通知",
+                subtitle = "特别关注的用户发布新微博时提醒",
+                checked = state.specialNotifEnabled,
+                onCheckedChange = vm::setSpecialNotifEnabled
+            )
+
+            HorizontalDivider()
+
             // ── 外观 ──────────────────────────────────────────────
             SectionTitle("外观")
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -228,4 +247,31 @@ private fun SectionTitle(text: String) {
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.primary
     )
+}
+
+@Composable
+private fun NotificationToggle(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
 }

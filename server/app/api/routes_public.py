@@ -41,7 +41,13 @@ def register_device(payload: dict = Body(...)):
     token = str(payload.get("token", "")).strip()
     if not token:
         raise HTTPException(status_code=400, detail="缺少 token")
-    push.register_device(token, str(payload.get("label", "")).strip())
+    # 通知开关缺省视为开启（兼容旧版 app）
+    push.register_device(
+        token,
+        str(payload.get("label", "")).strip(),
+        bool(payload.get("notif_captcha", True)),
+        bool(payload.get("notif_special", True)),
+    )
     return {"ok": True, "push_enabled": push.enabled()}
 
 

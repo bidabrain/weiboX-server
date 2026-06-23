@@ -13,10 +13,12 @@ import com.google.firebase.messaging.RemoteMessage
 import com.weibox.app.CaptchaActivity
 import com.weibox.app.MainActivity
 import com.weibox.app.R
+import com.weibox.app.data.prefs.AppPreferences
 import com.weibox.app.data.repository.WeiboRepository
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -28,6 +30,7 @@ private const val CAPTCHA_NOTIF_ID = 1001
 class WeiboMessagingService : FirebaseMessagingService() {
 
     @Inject lateinit var repository: WeiboRepository
+    @Inject lateinit var prefs: AppPreferences
 
     private val scope = CoroutineScope(Dispatchers.IO)
 
@@ -39,23 +42,32 @@ class WeiboMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
         val data = message.data
         when (data["type"]) {
-            "captcha" -> showCaptchaNotification(
-                data["title"] ?: "微博验证码",
-                data["body"] ?: "点击在 app 内完成验证"
-            )
-            "new_posts" -> showNewPostsNotification(
-                data["title"] ?: "特别关注更新",
-                data["body"] ?: "特别关注的用户发布了新微博",
-                data["user_id"] ?: ""
-            )
+            "captcha" -> scope.launch {
+                // 用户关闭了验证码通知则不弹
+                if (!prefs.captchaNotifEnabled.first()) return@launch
+                showCaptchaNotification(
+                    data["title"] ?: "微博验证码",
+                    data["body"] ?: "点击在 app 内完成验证"
+                )
+            }
+            "new_posts" -> scope.launch {
+                // 用户关闭了特别关注通知则不弹
+                if (!prefs.specialNotifEnabled.first()) return@launch
+                showNewPostsNotification(
+                    data["title"] ?: "特别关注更新",
+                    data["body"] ?: "特别关注的用户发布了新微博",
+                    data["user_id"] ?: ""
+                )
+            }
         }
     }
 
     private fun showNewPostsNotification(title: String, body: String, userId: String) {
         ensureSpecialChannel()
-        // 点击打开 app（主界面）。同一用户多条更新合并到同一通知。
+        // 点击打开 app 并跳转到该特别关注用户的详情页。同一用户多条更新合并到同一通知。
         val intent = Intent(this, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            .putExtra(MainActivity.EXTRA_PROFILE_USER_ID, userId)
         val pending = PendingIntent.getActivity(
             this, userId.hashCode(), intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE

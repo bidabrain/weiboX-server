@@ -39,7 +39,10 @@ private sealed class Tab(val route: String, val label: String, val icon: ImageVe
 private val tabs = listOf(Tab.Home, Tab.Hot, Tab.Search, Tab.Following, Tab.Settings)
 
 @Composable
-fun AppNavGraph() {
+fun AppNavGraph(
+    pendingProfileUserId: String? = null,
+    onPendingProfileConsumed: () -> Unit = {}
+) {
     val navController = rememberNavController()
     val backStack by navController.currentBackStackEntryAsState()
     val currentDest = backStack?.destination
@@ -47,6 +50,14 @@ fun AppNavGraph() {
 
     var homeScrollToTopTrigger by remember { mutableIntStateOf(0) }
     var hotScrollToTopTrigger by remember { mutableIntStateOf(0) }
+
+    // 点击特别关注通知后跳转到该用户详情页
+    LaunchedEffect(pendingProfileUserId) {
+        pendingProfileUserId?.let { uid ->
+            navController.navigate("profile/$uid")
+            onPendingProfileConsumed()
+        }
+    }
 
     Scaffold(
         bottomBar = {
