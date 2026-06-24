@@ -12,3 +12,7 @@ local.properties
 
 # Firebase 客户端配置：各部署者用自己的 Firebase 项目，放到 app/google-services.json
 app/google-services.json
+
+# 多平台/Nitter 方案设计笔记（本地保留，不推送）
+docs/platform-tag-plan.md
+docs/nitter抓取笔记.md
