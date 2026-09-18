@@ -37,6 +37,7 @@ private val DarkColors = darkColorScheme(
 @Composable
 fun WeiboXTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    fontScale: Float = 1f,
     content: @Composable () -> Unit
 ) {
     // 状态栏 / 导航栏图标颜色随主题切换：
@@ -52,7 +53,7 @@ fun WeiboXTheme(
     }
     MaterialTheme(
         colorScheme = if (darkTheme) DarkColors else LightColors,
-        typography = WeiboXTypography,
+        typography = weiboXTypography(fontScale),
         content = content
     )
 }

@@ -18,9 +18,18 @@ private val KEY_THEME_MODE    = stringPreferencesKey("theme_mode")
 private val KEY_LAST_REFRESH  = longPreferencesKey("last_refresh")
 private val KEY_NOTIF_CAPTCHA = booleanPreferencesKey("notif_captcha")  // 验证码通知开关
 private val KEY_NOTIF_SPECIAL = booleanPreferencesKey("notif_special")  // 特别关注通知开关
+private val KEY_FONT_SCALE    = stringPreferencesKey("font_scale")
 
 /** 主题模式：跟随系统 / 强制浅色 / 强制深色。 */
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
+/**
+ * 字体大小档位，倍率作用在 [com.weibox.app.ui.theme.weiboXTypography] 上。
+ * 这是叠加在系统字体大小之上的倍率，不是绝对字号。
+ */
+enum class FontScale(val scale: Float) {
+    SMALL(0.875f), NORMAL(1f), LARGE(1.15f), XLARGE(1.3f)
+}
 
 class AppPreferences(private val context: Context) {
 
@@ -43,6 +52,16 @@ class AppPreferences(private val context: Context) {
         }
     }
 
+    /** 字体大小档位，旧版本没有此项时落到 NORMAL（与改动前完全一致）。 */
+    val fontScale: Flow<FontScale> = context.dataStore.data.map { p ->
+        when (p[KEY_FONT_SCALE]) {
+            "small"  -> FontScale.SMALL
+            "large"  -> FontScale.LARGE
+            "xlarge" -> FontScale.XLARGE
+            else     -> FontScale.NORMAL
+        }
+    }
+
     suspend fun saveServer(url: String, token: String) =
         context.dataStore.edit {
             it[KEY_SERVER_URL] = url.trim().trimEnd('/')
@@ -55,6 +74,16 @@ class AppPreferences(private val context: Context) {
                 ThemeMode.LIGHT  -> "light"
                 ThemeMode.DARK   -> "dark"
                 ThemeMode.SYSTEM -> "system"
+            }
+        }
+
+    suspend fun setFontScale(value: FontScale) =
+        context.dataStore.edit {
+            it[KEY_FONT_SCALE] = when (value) {
+                FontScale.SMALL  -> "small"
+                FontScale.NORMAL -> "normal"
+                FontScale.LARGE  -> "large"
+                FontScale.XLARGE -> "xlarge"
             }
         }
 

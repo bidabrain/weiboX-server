@@ -11,7 +11,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.weibox.app.R
 import com.weibox.app.data.api.ServerApi
+import com.weibox.app.data.api.UpdateChecker
 import com.weibox.app.data.prefs.AppPreferences
+import com.weibox.app.data.prefs.FontScale
 import com.weibox.app.data.prefs.ThemeMode
 import com.weibox.app.data.repository.WeiboRepository
 import com.weibox.app.fcm.FcmRegistrar
@@ -25,6 +27,13 @@ import java.io.File
 import java.io.FileOutputStream
 import javax.inject.Inject
 
+/** 「检查更新」的结果。 */
+sealed interface UpdateState {
+    data class UpToDate(val current: String) : UpdateState
+    data class NewVersion(val latest: String, val downloadUrl: String) : UpdateState
+    data class Failed(val message: String) : UpdateState
+}
+
 data class SettingsUiState(
     val serverUrl: String = "",
     val apiToken: String = "",
@@ -34,9 +43,13 @@ data class SettingsUiState(
     val testing: Boolean = false,
     val connectionMessage: String? = null,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val fontScale: FontScale = FontScale.NORMAL,
     val captchaNotifEnabled: Boolean = true,
     val specialNotifEnabled: Boolean = true,
-    val donateMessage: String? = null
+    val donateMessage: String? = null,
+    val appVersion: String = "?",
+    val checkingUpdate: Boolean = false,
+    val updateState: UpdateState? = null
 )
 
 @HiltViewModel
@@ -53,8 +66,14 @@ class SettingsViewModel @Inject constructor(
         prefs.serverUrl.onEach { v -> _state.update { it.copy(serverUrl = v, serverUrlInput = v) } }.launchIn(viewModelScope)
         prefs.apiToken.onEach { v -> _state.update { it.copy(apiToken = v, apiTokenInput = v) } }.launchIn(viewModelScope)
         prefs.themeMode.onEach { m -> _state.update { it.copy(themeMode = m) } }.launchIn(viewModelScope)
+        prefs.fontScale.onEach { v -> _state.update { it.copy(fontScale = v) } }.launchIn(viewModelScope)
         prefs.captchaNotifEnabled.onEach { v -> _state.update { it.copy(captchaNotifEnabled = v) } }.launchIn(viewModelScope)
         prefs.specialNotifEnabled.onEach { v -> _state.update { it.copy(specialNotifEnabled = v) } }.launchIn(viewModelScope)
+
+        val version = runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?"
+        }.getOrDefault("?")
+        _state.update { it.copy(appVersion = version) }
     }
 
     // ── 服务器配置 ───────────────────────────────────────────────
@@ -90,6 +109,8 @@ class SettingsViewModel @Inject constructor(
 
     fun setThemeMode(mode: ThemeMode) = viewModelScope.launch { prefs.setThemeMode(mode) }
 
+    fun setFontScale(value: FontScale) = viewModelScope.launch { prefs.setFontScale(value) }
+
     // ── 通知开关 ─────────────────────────────────────────────────
     // 写入本地后再把最新开关上报 server，让 server 据此决定是否对本设备发送
     fun setCaptchaNotifEnabled(enabled: Boolean) = viewModelScope.launch {
@@ -99,6 +120,28 @@ class SettingsViewModel @Inject constructor(
     fun setSpecialNotifEnabled(enabled: Boolean) = viewModelScope.launch {
         prefs.setSpecialNotifEnabled(enabled)
         FcmRegistrar.registerCurrentToken(repo, viewModelScope)
+    }
+
+    // ── 检查更新 ─────────────────────────────────────────────────
+    /** 拉 GitHub 最新 release，与当前包版本比较。当前 >= 线上即视为已是最新。 */
+    fun checkUpdate() = viewModelScope.launch {
+        _state.update { it.copy(checkingUpdate = true, updateState = null) }
+        val current = _state.value.appVersion
+        val result = runCatching { UpdateChecker.fetchLatest() }
+        _state.update { s ->
+            s.copy(
+                checkingUpdate = false,
+                updateState = result.fold(
+                    onSuccess = { release ->
+                        if (UpdateChecker.compareVersions(current, release.version) >= 0)
+                            UpdateState.UpToDate(current)
+                        else
+                            UpdateState.NewVersion(release.version, release.downloadUrl)
+                    },
+                    onFailure = { e -> UpdateState.Failed(e.message ?: "检查失败") }
+                )
+            )
+        }
     }
 
     // ── 支持开发者 ────────────────────────────────────────────────

@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.isSystemInDarkTheme
 import com.weibox.app.data.prefs.AppPreferences
+import com.weibox.app.data.prefs.FontScale
 import com.weibox.app.data.prefs.ThemeMode
 import com.weibox.app.ui.theme.WeiboXTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -53,7 +54,8 @@ class CaptchaActivity : ComponentActivity() {
                 ThemeMode.LIGHT  -> false
                 ThemeMode.DARK   -> true
             }
-            WeiboXTheme(darkTheme = dark) {
+            val fontScale = prefs.fontScale.collectAsState(initial = FontScale.NORMAL).value
+            WeiboXTheme(darkTheme = dark, fontScale = fontScale.scale) {
                 CaptchaScreen(prefs = prefs, onClose = { finish() })
             }
         }

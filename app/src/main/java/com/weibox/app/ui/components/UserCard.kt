@@ -16,7 +16,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.weibox.app.data.model.WeiboUser
 
 @Composable
@@ -58,7 +57,7 @@ fun UserCard(
                     Spacer(Modifier.width(4.dp))
                     Text(
                         text = "V",
-                        fontSize = 10.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold
                     )
@@ -75,7 +74,7 @@ fun UserCard(
             }
             Text(
                 text = "${user.followersCount} 粉丝 · ${user.statusesCount} 微博",
-                fontSize = 11.sp,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
         }
@@ -102,7 +101,7 @@ fun UserCard(
             ) {
                 Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(3.dp))
-                Text("已关注", fontSize = 12.sp)
+                Text("已关注", style = MaterialTheme.typography.bodySmall)
             }
         } else {
             Button(
@@ -111,7 +110,7 @@ fun UserCard(
             ) {
                 Icon(Icons.Filled.PersonAdd, contentDescription = null, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(3.dp))
-                Text("关注", fontSize = 12.sp)
+                Text("关注", style = MaterialTheme.typography.bodySmall)
             }
         }
     }

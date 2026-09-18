@@ -22,6 +22,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.weibox.app.R
+import com.weibox.app.data.prefs.FontScale
 import com.weibox.app.data.prefs.ThemeMode
 import com.weibox.app.ui.components.WeiboTopBar
 
@@ -163,6 +164,48 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
                 }
             }
 
+            Spacer(Modifier.height(16.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.FormatSize, contentDescription = null)
+                Spacer(Modifier.width(12.dp))
+                Text("字体大小", style = MaterialTheme.typography.bodyLarge)
+            }
+            Spacer(Modifier.height(8.dp))
+            val fontOptions = listOf(
+                FontScale.SMALL  to "小",
+                FontScale.NORMAL to "标准",
+                FontScale.LARGE  to "大",
+                FontScale.XLARGE to "超大"
+            )
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                fontOptions.forEachIndexed { index, (value, label) ->
+                    SegmentedButton(
+                        selected = state.fontScale == value,
+                        onClick = { vm.setFontScale(value) },
+                        shape = SegmentedButtonDefaults.itemShape(index, fontOptions.size)
+                    ) { Text(label) }
+                }
+            }
+            // 即时预览：用微博正文同款 bodyMedium，点完不用切回时间线就能看到效果
+            Surface(
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    "预览：微博正文就是这个大小。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                )
+            }
+            Text(
+                "在系统字体大小的基础上缩放。若系统已调大，两者会叠加。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+
             HorizontalDivider()
 
             // ── 支持开发者 ────────────────────────────────────────
@@ -205,16 +248,54 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
             // ── 关于 ──────────────────────────────────────────────
             SectionTitle("关于")
             val context = LocalContext.current
-            val versionName = remember {
-                runCatching {
-                    context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?"
-                }.getOrDefault("?")
-            }
             Text(
-                "WeiboX v$versionName\n第三方微博客户端，数据来自你自建的 WeiboX Server。",
+                "WeiboX v${state.appVersion}\n第三方微博客户端，数据来自你自建的 WeiboX Server。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
+
+            OutlinedButton(
+                onClick = vm::checkUpdate,
+                enabled = !state.checkingUpdate
+            ) {
+                if (state.checkingUpdate) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(6.dp))
+                }
+                Text(if (state.checkingUpdate) "检查中…" else "检查更新")
+            }
+
+            when (val u = state.updateState) {
+                is UpdateState.UpToDate -> UpdateResultBox(
+                    text = "已是最新版本（v${u.current}）",
+                    isError = false
+                )
+                is UpdateState.Failed -> UpdateResultBox(
+                    text = "检查失败：${u.message}",
+                    isError = true
+                )
+                is UpdateState.NewVersion -> UpdateResultBox(
+                    text = "发现新版本 v${u.latest}",
+                    isError = false
+                ) {
+                    TextButton(
+                        onClick = {
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse(u.downloadUrl))
+                            )
+                        },
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text(
+                            "点此下载 weibox-${u.latest}.apk",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+                null -> Unit
+            }
+
             Spacer(Modifier.height(6.dp))
             Text(
                 "本项目开源，欢迎 Star 和反馈问题：",
@@ -273,5 +354,30 @@ private fun NotificationToggle(
         }
         Spacer(Modifier.width(12.dp))
         Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+/** 检查更新的结果框，配色沿用上方「测试连接」的提示框。 */
+@Composable
+private fun UpdateResultBox(
+    text: String,
+    isError: Boolean,
+    extra: @Composable (() -> Unit)? = null
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.small,
+        color = if (isError) MaterialTheme.colorScheme.errorContainer
+                else MaterialTheme.colorScheme.primaryContainer
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (isError) MaterialTheme.colorScheme.onErrorContainer
+                        else MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            extra?.invoke()
+        }
     }
 }

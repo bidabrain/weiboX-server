@@ -100,7 +100,7 @@ fun PostCard(
                         )
                         Text(
                             text = formatTime(post.createdAtTimestamp),
-                            fontSize = 12.sp,
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -113,7 +113,6 @@ fun PostCard(
                             text = post.text,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface,
-                            lineHeight = 20.sp,
                             maxLines = 8,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -306,7 +305,7 @@ private fun ActionItem(
             Spacer(Modifier.width(4.dp))
             Text(
                 text = label,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }

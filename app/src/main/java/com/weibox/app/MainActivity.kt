@@ -18,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.weibox.app.data.prefs.AppPreferences
+import com.weibox.app.data.prefs.FontScale
 import com.weibox.app.data.prefs.ThemeMode
 import com.weibox.app.data.repository.WeiboRepository
 import com.weibox.app.fcm.FcmRegistrar
@@ -80,7 +81,8 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.LIGHT  -> false
                 ThemeMode.DARK   -> true
             }
-            WeiboXTheme(darkTheme = darkTheme) {
+            val fontScale by prefs.fontScale.collectAsState(initial = FontScale.NORMAL)
+            WeiboXTheme(darkTheme = darkTheme, fontScale = fontScale.scale) {
                 AppNavGraph(
                     pendingProfileUserId = pendingProfileUserId.value,
                     onPendingProfileConsumed = { pendingProfileUserId.value = null }
