@@ -16,3 +16,6 @@ app/google-services.json
 # 多平台/Nitter 方案设计笔记（本地保留，不推送）
 docs/platform-tag-plan.md
 docs/nitter抓取笔记.md
+
+# FCM 服务账号私钥：绝不提交
+firebase-key.json

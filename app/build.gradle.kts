@@ -6,6 +6,10 @@ plugins {
     alias(libs.plugins.google.services)
 }
 
+// 版本号默认用下面的值；CI 可用 -PweiboxVersionCode / -PweiboxVersionName 覆盖，本地构建行为不变。
+val weiboxVersionCode = (project.findProperty("weiboxVersionCode") as String?)?.toInt() ?: 2
+val weiboxVersionName = (project.findProperty("weiboxVersionName") as String?) ?: "1.1"
+
 android {
     namespace = "com.weibox.app"
     compileSdk = 34
@@ -14,10 +18,25 @@ android {
         applicationId = "com.weibox.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = weiboxVersionCode
+        versionName = weiboxVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
+    }
+
+    // 固定的 debug keystore（随仓库提交）。有它才能保证每次构建——不管本地还是 CI——
+    // 签名完全一致，新包可以直接覆盖升级安装。文件不存在时回落到 AGP 默认的
+    // ~/.android/debug.keystore（每台机器各不相同，跨机器装不上）。
+    signingConfigs {
+        getByName("debug") {
+            val ks = rootProject.file("app/debug.keystore")
+            if (ks.exists()) {
+                storeFile = ks
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
     }
 
     buildTypes {

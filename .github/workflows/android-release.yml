@@ -1,0 +1,102 @@
+name: Build & Release APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'gradle/**'
+      - '*.gradle.kts'
+      - 'gradle.properties'
+      - '.github/workflows/android-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # google-services.json 不在仓库里（.gitignore 排除），从 Secret 还原
+      - name: 还原 google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON" ]; then
+            echo "::error::缺少 secret GOOGLE_SERVICES_JSON（把 app/google-services.json 的内容原样粘进去即可）"
+            exit 1
+          fi
+          # 明文 JSON 和 base64 两种都接受
+          if printf '%s' "$GOOGLE_SERVICES_JSON" | head -c 1 | grep -q '{'; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
+            echo "secret 识别为明文 JSON"
+          else
+            printf '%s' "$GOOGLE_SERVICES_JSON" | base64 -d > app/google-services.json
+            echo "secret 识别为 base64"
+          fi
+          if ! grep -q 'com.weibox.app' app/google-services.json; then
+            echo "::error::还原出的 google-services.json 里找不到包名 com.weibox.app —— secret 内容可能不完整或复制时被截断"
+            exit 1
+          fi
+          echo "已还原，$(wc -c < app/google-services.json) 字节"
+
+      - name: 检查签名 keystore
+        run: |
+          if [ ! -f app/debug.keystore ]; then
+            echo "::error::app/debug.keystore 不存在。请先到 Actions 里手动运行一次 “Bootstrap debug keystore”。"
+            exit 1
+          fi
+
+      # AGP 8.2.2 + Gradle 8.2 必须用 JDK 17（JDK 21 需要 Gradle 8.5+）
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: 计算版本号
+        id: ver
+        run: |
+          # run_number 从 1 开始；加 10 的偏移，保证大于仓库里原有的 versionCode(2)
+          echo "code=$(( ${{ github.run_number }} + 10 ))" >> "$GITHUB_OUTPUT"
+          echo "name=1.1.${{ github.run_number }}"        >> "$GITHUB_OUTPUT"
+
+      - name: 构建 release APK
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleRelease --no-daemon \
+            -PweiboxVersionCode=${{ steps.ver.outputs.code }} \
+            -PweiboxVersionName=${{ steps.ver.outputs.name }}
+
+      - name: 重命名产物
+        id: apk
+        run: |
+          out="weibox-${{ steps.ver.outputs.name }}.apk"
+          mv app/build/outputs/apk/release/app-release.apk "$out"
+          echo "path=$out" >> "$GITHUB_OUTPUT"
+          ls -la "$out"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: weibox-apk
+          path: ${{ steps.apk.outputs.path }}
+          retention-days: 30
+
+      - name: 发布到滚动的 latest Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest "${{ steps.apk.outputs.path }}" \
+            --title "最新构建 ${{ steps.ver.outputs.name }}" \
+            --notes "自动构建自 \`${{ github.sha }}\`（versionCode ${{ steps.ver.outputs.code }}）。
+
+          用固定 debug key 签名，可直接覆盖升级安装，无需卸载旧版。" \
+            --latest
