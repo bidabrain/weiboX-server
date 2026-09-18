@@ -7,11 +7,14 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -22,10 +25,14 @@ import com.weibox.app.ui.components.WeiboTopBar
 @Composable
 fun SearchScreen(
     onNavigateToProfile: (String) -> Unit,
+    onBack: () -> Unit = {},
     vm: SearchViewModel = hiltViewModel()
 ) {
     val state by vm.state.collectAsState()
     val listState = rememberLazyListState()
+    // 从顶部搜索条点进来就是为了输入，直接聚焦并弹键盘
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
     val shouldLoadMore by remember {
         derivedStateOf {
@@ -35,12 +42,26 @@ fun SearchScreen(
     }
     LaunchedEffect(shouldLoadMore) { if (shouldLoadMore) vm.loadMore() }
 
-    Scaffold(topBar = { WeiboTopBar("内容发现") }) { padding ->
+    Scaffold(
+        topBar = {
+            WeiboTopBar(
+                title = "内容发现",
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                    }
+                }
+            )
+        }
+    ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             OutlinedTextField(
                 value = state.query,
                 onValueChange = vm::onQueryChange,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .focusRequester(focusRequester),
                 label = { Text("用户名或 ID") },
                 placeholder = { Text("输入昵称关键词，或直接输入数字 ID") },
                 trailingIcon = {

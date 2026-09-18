@@ -1,16 +1,17 @@
 package com.weibox.app.navigation
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.People
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -31,12 +32,14 @@ import com.weibox.app.ui.screen.settings.SettingsScreen
 private sealed class Tab(val route: String, val label: String, val icon: ImageVector) {
     object Home      : Tab("home",      "时间线",   Icons.Filled.Home)
     object Hot       : Tab("hot",       "热门",     Icons.Filled.Whatshot)
-    object Search    : Tab("search",    "内容发现", Icons.Filled.Search)
     object Following : Tab("following", "关注",     Icons.Filled.People)
     object Settings  : Tab("settings",  "设置",     Icons.Filled.Settings)
 }
 
-private val tabs = listOf(Tab.Home, Tab.Hot, Tab.Search, Tab.Following, Tab.Settings)
+private val tabs = listOf(Tab.Home, Tab.Hot, Tab.Following, Tab.Settings)
+
+// 搜索不再占底栏位置，改由各页顶部的 SearchEntryBar 压栈进入（自带返回）
+private const val ROUTE_SEARCH = "search"
 
 @Composable
 fun AppNavGraph(
@@ -85,8 +88,20 @@ fun AppNavGraph(
                                     }
                                 }
                             },
-                            icon = { Icon(tab.icon, contentDescription = tab.label) },
-                            label = { Text(tab.label, style = MaterialTheme.typography.labelSmall) },
+                            icon = {
+                                Icon(
+                                    tab.icon,
+                                    contentDescription = tab.label,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            },
+                            label = {
+                                Text(
+                                    tab.label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                                )
+                            },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.primary,
                                 selectedTextColor = MaterialTheme.colorScheme.primary,
@@ -108,20 +123,28 @@ fun AppNavGraph(
             composable(Tab.Home.route) {
                 HomeScreen(
                     onNavigateToProfile = { uid -> navController.navigate("profile/$uid") },
+                    onNavigateToSearch = { navController.navigate(ROUTE_SEARCH) },
                     scrollToTopTrigger = homeScrollToTopTrigger
                 )
             }
             composable(Tab.Hot.route) {
                 HotScreen(
                     onNavigateToProfile = { uid -> navController.navigate("profile/$uid") },
+                    onNavigateToSearch = { navController.navigate(ROUTE_SEARCH) },
                     scrollToTopTrigger = hotScrollToTopTrigger
                 )
             }
-            composable(Tab.Search.route) {
-                SearchScreen(onNavigateToProfile = { uid -> navController.navigate("profile/$uid") })
+            composable(ROUTE_SEARCH) {
+                SearchScreen(
+                    onNavigateToProfile = { uid -> navController.navigate("profile/$uid") },
+                    onBack = { navController.popBackStack() }
+                )
             }
             composable(Tab.Following.route) {
-                FollowingScreen(onNavigateToProfile = { uid -> navController.navigate("profile/$uid") })
+                FollowingScreen(
+                    onNavigateToProfile = { uid -> navController.navigate("profile/$uid") },
+                    onNavigateToSearch = { navController.navigate(ROUTE_SEARCH) }
+                )
             }
             composable(Tab.Settings.route) { SettingsScreen() }
             composable(

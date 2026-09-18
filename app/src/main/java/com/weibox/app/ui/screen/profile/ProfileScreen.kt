@@ -92,7 +92,12 @@ fun ProfileScreen(
                 contentAlignment = Alignment.Center
             ) { Text(state.error!!, color = MaterialTheme.colorScheme.error) }
 
-            else -> LazyColumn(state = listState, modifier = Modifier.padding(padding).fillMaxSize()) {
+            else -> LazyColumn(
+                state = listState,
+                modifier = Modifier.padding(padding).fillMaxSize(),
+                // 头部要通栏，所以横向留白加在帖子卡片自己身上而不是 contentPadding
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 // Profile header
                 item {
                     ProfileHeader(
@@ -106,7 +111,12 @@ fun ProfileScreen(
 
                 // Posts
                 items(state.posts, key = { it.id }) { post ->
-                    PostCard(post = post, onUserClick = {}, repo = vm.repo)
+                    PostCard(
+                        post = post,
+                        onUserClick = {},
+                        repo = vm.repo,
+                        modifier = Modifier.padding(horizontal = 12.dp)
+                    )
                 }
 
                 if (state.isRefreshing) {
