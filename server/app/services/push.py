@@ -100,6 +100,25 @@ def device_count() -> int:
         return len(s.execute(select(DeviceToken)).scalars().all())
 
 
+def target_count(kind: str) -> int:
+    """某类通知的实际收件设备数（已排除在 app 里关掉该开关的设备）。"""
+    return len(_tokens_for(kind))
+
+
+def list_devices() -> List[dict]:
+    """WebUI 用：已注册设备一览。token 只回前 12 位，够定位又不必全量外泄。"""
+    with get_session() as s:
+        rows = s.execute(select(DeviceToken).order_by(DeviceToken.created_at)).scalars().all()
+        return [{
+            "token_prefix": r.token[:12],
+            "label": r.label,
+            "created_at": r.created_at,
+            "last_seen": r.last_seen,
+            "notif_captcha": r.notif_captcha,
+            "notif_special": r.notif_special,
+        } for r in rows]
+
+
 def _remove_tokens(tokens: List[str]) -> None:
     if not tokens:
         return
@@ -162,5 +181,20 @@ def notify_new_posts(user_name: str, count: int, user_id: str = "") -> int:
         title="特别关注更新",
         body=f"{name} 发布了 {count} 条新微博",
         data={"type": "new_posts", "user_id": user_id or "", "user_name": name, "count": count},
+        kind="special",
+    )
+
+
+def notify_test() -> int:
+    """WebUI 的「测试推送」。
+
+    刻意复用 type=new_posts：app 的 onMessageReceived 只认 captcha / new_posts
+    两种类型，其它类型会被静默丢弃。若在这里用自定义的 type=test，已经装在
+    手机上的版本收不到，测试就失去意义了。user_id 留空，app 点开只是打开首页。
+    """
+    return _send(
+        title="WeiboX 测试推送",
+        body="收到这条通知说明 FCM 配置正常",
+        data={"type": "new_posts", "user_id": "", "user_name": "测试", "count": 1},
         kind="special",
     )

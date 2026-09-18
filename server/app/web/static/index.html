@@ -126,6 +126,17 @@
             </div>
           </div>
           <div class="card">
+            <h3>推送（FCM）</h3>
+            <p class="muted">私钥放在服务器的 <code>data/firebase-key.json</code>，重启后生效；没有则推送关闭，验证码仍可在本页处理。</p>
+            <div id="push-status" class="muted"></div>
+            <div id="push-devices" class="token-list"></div>
+            <div class="row">
+              <button type="button" id="push-test">发送测试推送</button>
+              <button type="button" id="push-refresh">刷新状态</button>
+            </div>
+            <div id="push-msg" class="muted"></div>
+          </div>
+          <div class="card">
             <h3>抓取参数</h3>
             <label>定时抓取 <input type="checkbox" id="set-scrape_enabled" /></label>
             <label>每轮间隔（秒）<input type="number" id="set-round_interval_sec" min="30" /></label>

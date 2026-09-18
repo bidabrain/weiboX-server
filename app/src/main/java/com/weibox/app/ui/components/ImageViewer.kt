@@ -9,6 +9,7 @@ import android.provider.MediaStore
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -19,13 +20,17 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.ContentScale
@@ -50,6 +55,8 @@ fun ImageViewerDialog(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val pagerState = rememberPagerState(initialPage = initialIndex) { urls.size }
+    // 保存进行中时禁用两个按钮，避免连点重复写入相册
+    var saving by remember { mutableStateOf(false) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -88,6 +95,42 @@ fun ImageViewerDialog(
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 24.dp)
                 )
+            }
+
+            // 左下角：下载当前 / 下载全部。与长按保存等效，只是更好发现。
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 12.dp, bottom = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ViewerActionButton(
+                    icon = Icons.Filled.Download,
+                    text = "下载",
+                    enabled = !saving,
+                    onClick = {
+                        scope.launch {
+                            saving = true
+                            saveImageToGallery(context, urls[pagerState.currentPage])
+                            saving = false
+                        }
+                    }
+                )
+                if (urls.size > 1) {
+                    ViewerActionButton(
+                        icon = Icons.Filled.DownloadForOffline,
+                        text = "全部 (${urls.size})",
+                        enabled = !saving,
+                        onClick = {
+                            scope.launch {
+                                saving = true
+                                saveAllToGallery(context, urls)
+                                saving = false
+                            }
+                        }
+                    )
+                }
             }
         }
     }
@@ -163,44 +206,84 @@ private fun ZoomableImage(url: String, onLongClick: () -> Unit) {
     }
 }
 
-private suspend fun saveImageToGallery(context: Context, url: String) {
-    withContext(Dispatchers.IO) {
-        try {
-            val loader = coil.ImageLoader(context)
-            val req = ImageRequest.Builder(context).data(url).allowHardware(false).build()
-            val bitmap = ((loader.execute(req) as? SuccessResult)?.drawable
-                    as? android.graphics.drawable.BitmapDrawable)?.bitmap
-                ?: run {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "保存失败", Toast.LENGTH_SHORT).show()
-                    }
-                    return@withContext
-                }
+/** 左下角的半透明胶囊按钮。 */
+@Composable
+private fun ViewerActionButton(
+    icon: ImageVector,
+    text: String,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    val tint = if (enabled) Color.White else Color.White.copy(alpha = 0.4f)
+    Row(
+        modifier = Modifier
+            .clip(MaterialTheme.shapes.small)
+            .background(Color.Black.copy(alpha = 0.5f))
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(text, color = tint, style = MaterialTheme.typography.bodySmall)
+    }
+}
 
-            val filename = "WeiboX_${System.currentTimeMillis()}.jpg"
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val values = ContentValues().apply {
-                    put(MediaStore.Images.Media.DISPLAY_NAME, filename)
-                    put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-                    put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/WeiboX")
-                }
-                val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                uri?.let { context.contentResolver.openOutputStream(it) }?.use {
-                    bitmap.compress(Bitmap.CompressFormat.JPEG, 95, it)
-                }
-            } else {
-                @Suppress("DEPRECATION")
-                MediaStore.Images.Media.insertImage(
-                    context.contentResolver, bitmap, filename, "WeiboX image"
-                )
+/**
+ * 把一张图写入相册。成功返回 true，**不弹 Toast**——提示交给调用方，
+ * 否则「下载全部」会连弹 N 次。
+ */
+private suspend fun saveOne(context: Context, url: String): Boolean = withContext(Dispatchers.IO) {
+    try {
+        val loader = coil.ImageLoader(context)
+        val req = ImageRequest.Builder(context).data(url).allowHardware(false).build()
+        val bitmap = ((loader.execute(req) as? SuccessResult)?.drawable
+                as? android.graphics.drawable.BitmapDrawable)?.bitmap
+            ?: return@withContext false
+
+        // 批量保存时同一毫秒可能写入多张，带上 url 哈希避免重名覆盖
+        val suffix = url.hashCode().toUInt().toString(16)
+        val filename = "WeiboX_${System.currentTimeMillis()}_$suffix.jpg"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/WeiboX")
             }
-            withContext(Dispatchers.Main) {
-                Toast.makeText(context, "已保存到相册", Toast.LENGTH_SHORT).show()
-            }
-        } catch (e: Exception) {
-            withContext(Dispatchers.Main) {
-                Toast.makeText(context, "保存失败: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
+            val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: return@withContext false
+            context.contentResolver.openOutputStream(uri)?.use {
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 95, it)
+            } ?: return@withContext false
+        } else {
+            @Suppress("DEPRECATION")
+            MediaStore.Images.Media.insertImage(
+                context.contentResolver, bitmap, filename, "WeiboX image"
+            )
         }
+        true
+    } catch (e: Exception) {
+        false
+    }
+}
+
+private suspend fun saveImageToGallery(context: Context, url: String) {
+    val ok = saveOne(context, url)
+    withContext(Dispatchers.Main) {
+        Toast.makeText(context, if (ok) "已保存到相册" else "保存失败", Toast.LENGTH_SHORT).show()
+    }
+}
+
+/** 保存整条微博的全部图片，只在开始和结束各提示一次。 */
+private suspend fun saveAllToGallery(context: Context, urls: List<String>) {
+    withContext(Dispatchers.Main) {
+        Toast.makeText(context, "开始保存 ${urls.size} 张…", Toast.LENGTH_SHORT).show()
+    }
+    var ok = 0
+    urls.forEach { if (saveOne(context, it)) ok++ }
+    withContext(Dispatchers.Main) {
+        val msg = if (ok == urls.size) "已保存 $ok 张到相册"
+                  else "已保存 $ok/${urls.size} 张，其余失败"
+        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
     }
 }

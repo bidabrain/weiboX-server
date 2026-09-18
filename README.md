@@ -9,6 +9,12 @@ WeiboX 分两部分：一个长期运行的**服务端**（`server/`）负责定
   (只连 server)                  (扛防爬/验证码/缓存)      (真实数据源)
 ```
 
+## 截图
+
+| 时间线 | 热门 |
+|---|---|
+| <img src="screenshot1.jpg" width="320" alt="时间线" /> | <img src="screenshot2.jpg" width="320" alt="热门" /> |
+
 ## 为什么是客户端-服务器
 
 早期 WeiboX 是单机 app 直连微博，但微博有防爬，必须前后台限速抓取、还要在端上处理验证码。改成服务端架构后：
@@ -29,7 +35,29 @@ WeiboX 分两部分：一个长期运行的**服务端**（`server/`）负责定
 
 ### 1. 部署服务端
 
-最简单是 Docker（镜像已含 Playwright/Chromium）：
+**不想自己构建**，直接用已发布的官方镜像（多架构，x86 / ARM 服务器都能跑）：
+
+```bash
+mkdir weibox && cd weibox
+cat > docker-compose.yml <<'EOF'
+services:
+  weibox-server:
+    image: bidabrain/weibox-server:latest
+    container_name: weibox-server
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./data:/data
+    environment:
+      WEIBOX_ADMIN_PASSWORD: "你的强密码"
+      WEIBOX_ENABLE_BROWSER: "true"
+    shm_size: "1gb"
+EOF
+docker compose up -d
+```
+
+或者**从源码构建**：
 
 ```bash
 cd server
@@ -37,23 +65,43 @@ echo "WEIBOX_ADMIN_PASSWORD=你的强密码" > .env
 docker compose up -d --build
 ```
 
-打开 `http://localhost:8000` 登录 → 设置里**新建 API Token**、搜索并关注用户。
-完整部署（本地运行、Cloudflare Tunnel 公网、Docker Hub 发布）见 **[server/README.md](server/README.md)**。
+两种方式都是打开 `http://localhost:8000` 登录 → 设置里**新建 API Token**、搜索并关注用户。
+镜像里不含任何用户数据，全部状态在挂载的 `./data`。
+完整部署（本地运行、Cloudflare Tunnel 公网、自行发布镜像）见 **[server/README.md](server/README.md)**。
 
-### 2. 编译安卓客户端
+### 2. 获取安卓客户端
 
-> ⚠️ 本仓库**不含** `app/google-services.json`（FCM 客户端配置，各人用自己的 Firebase 项目）。
-> 先在 [Firebase 控制台](https://console.firebase.google.com/) 建项目、注册 Android app
-> （包名 `com.weibox.app`）、下载 `google-services.json` 放到 **`app/google-services.json`**，再编译。
+#### 方式 A：下载现成的 APK（无推送）
+
+[**Releases → latest**](https://github.com/bidabrain/weiboX-server/releases/tag/latest) 里有 CI 自动构建的签名包，装上即用。
+
+> ⚠️ **这个包收不到 FCM 推送。** 它内置的是作者 Firebase 项目的 `google-services.json`，
+> 设备会注册到作者的项目下；而要把通知发出去，**服务端必须持有同一项目的服务账号私钥**，
+> 那是不会公开的。所以用 release APK 时：
+>
+> - 验证码通知、特别关注新微博通知**都不会到达**；
+> - 验证码仍可随时在服务端 WebUI 里解，其余功能（时间线、热门、搜索、关注、评论）**一切正常**。
+>
+> **想要推送，就必须用自己的 Firebase 项目自行编译**，见下。
+
+#### 方式 B：自己编译（可用推送）
+
+本仓库**不含** `app/google-services.json`。先在 [Firebase 控制台](https://console.firebase.google.com/)
+建项目、注册 Android app（包名 `com.weibox.app`）、下载 `google-services.json` 放到
+**`app/google-services.json`**，再编译：
 
 ```bash
-# 放好 app/google-services.json 后
-./gradlew :app:assembleDebug
-# 产物：app/build/outputs/apk/debug/app-debug.apk
+./gradlew :app:assembleRelease
+# 产物：app/build/outputs/apk/release/app-release.apk
 ```
 
-> 不需要推送（FCM）的话，验证码也可以始终在服务端 WebUI 里解；但 app 应用了 google-services 插件，
-> 编译仍要求该文件存在。
+同时在**同一个 Firebase 项目**里生成服务账号私钥（项目设置 → 服务账号 → 生成新的私钥），
+重命名为 `firebase-key.json` 放到服务器的 **`data/firebase-key.json`**（Docker 部署即宿主机挂载的
+`./data` 目录下），重启容器即启用推送。
+
+> 两边必须是同一个 Firebase 项目，否则设备 token 对不上，推送发出去也到不了。
+> 不配私钥则推送关闭，其余功能照常；但 app 应用了 google-services 插件，**编译仍要求
+> `google-services.json` 存在**。
 
 ### 3. 客户端连接服务端
 
@@ -72,7 +120,12 @@ docker compose up -d --build
 - **验证码**：服务端抓取撞到验证码时推送 → 点通知 → app 打开验证码界面 → 实时显示验证码截图、手指点/滑 → 完成后服务端继续。
 - **特别关注新微博**：被你标为特别关注的用户发了新微博、服务端抓到后推送通知（每人每轮聚合一条，首关回填不推）。
 
-二者都需要：服务端放你 Firebase 项目的私钥 `server/data/firebase-key.json`，客户端用同项目的 `google-services.json`。不配则推送关闭，验证码仍可在服务端 WebUI 里解。
+二者都需要：服务端放你 Firebase 项目的私钥 `server/data/firebase-key.json`，客户端用**同一项目**的 `google-services.json`。不配则推送关闭，验证码仍可在服务端 WebUI 里解。
+
+配好后可在 WebUI「设置 → 推送（FCM）」里看到私钥加载状态和已注册设备，并点「发送测试推送」验证链路是否打通。
+
+> 再次提醒：[Releases](https://github.com/bidabrain/weiboX-server/releases/tag/latest) 里的现成 APK
+> 绑定的是作者的 Firebase 项目，**推送用不了**，必须自行编译。详见[上面的方式 B](#方式-b自己编译可用推送)。
 
 ## 项目结构
 

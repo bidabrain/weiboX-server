@@ -18,7 +18,7 @@ function showLogin() { $("login-view").classList.remove("hidden"); $("main-view"
 function showMain() {
   $("login-view").classList.add("hidden");
   $("main-view").classList.remove("hidden");
-  startPolling(); loadSettings(); loadFollowing(); loadTokens();
+  startPolling(); loadSettings(); loadFollowing(); loadTokens(); loadPushStatus();
 }
 
 // ── 登录 ────────────────────────────────────────────────────────
@@ -427,3 +427,54 @@ canvas.addEventListener("touchend", (e) => { e.preventDefault(); if (dragging) {
 (async function init() {
   try { await api("/admin/api/session"); showMain(); } catch { showLogin(); }
 })();
+
+// ── 推送（FCM）诊断与测试 ────────────────────────────────────────
+// 时间格式化复用上方已有的 fmtTime，不要再定义同名函数（会覆盖它）
+async function loadPushStatus() {
+  try {
+    const d = await api("/admin/api/push/status");
+    $("push-status").innerHTML = d.enabled
+      ? `状态：<b>已启用</b> · 私钥 <code>${esc(d.key_path)}</code>`
+      : `状态：<b>未启用</b> —— ${d.key_exists
+          ? "私钥存在但加载失败，检查文件是否为有效的服务账号 JSON，并重启服务"
+          : `未找到私钥 <code>${esc(d.key_path)}</code>`}`;
+    const box = $("push-devices");
+    if (!d.devices.length) {
+      box.innerHTML = '<div class="muted small">还没有设备注册。app 填好服务器地址和 Token 并保存后会自动上报。</div>';
+      return;
+    }
+    box.innerHTML = d.devices.map((v) => `
+      <div class="token-item">
+        <div class="token-main">
+          <div class="token-label">${esc(v.label || "未命名设备")}</div>
+          <code class="token-value">${esc(v.token_prefix)}… · 最后上报 ${esc(fmtTime(v.last_seen))}</code>
+        </div>
+        <span class="muted small">${v.notif_captcha ? "验证码✓" : "验证码✗"} ${v.notif_special ? "特关✓" : "特关✗"}</span>
+      </div>`).join("");
+  } catch (err) {
+    $("push-status").textContent = "读取失败：" + err.message;
+  }
+}
+
+$("push-refresh").addEventListener("click", loadPushStatus);
+
+$("push-test").addEventListener("click", async () => {
+  $("push-msg").textContent = "发送中…";
+  try {
+    const r = await api("/admin/api/push/test", { method: "POST" });
+    if (r.ok) {
+      $("push-msg").textContent = `已发送，${r.sent}/${r.devices} 台设备接收成功 ✓ 请查看手机通知栏`;
+    } else if (r.reason === "disabled") {
+      $("push-msg").textContent = "推送未启用：服务器上没有加载到 firebase-key.json";
+    } else if (r.reason === "no_devices") {
+      $("push-msg").textContent = "没有已注册的设备：先在 app 里填好服务器地址和 Token 并保存";
+    } else if (r.reason === "all_muted") {
+      $("push-msg").textContent = `${r.registered} 台设备都关掉了「特别关注通知」：在 app 的设置 → 通知管理里打开再试`;
+    } else {
+      $("push-msg").textContent = "FCM 调用失败：检查私钥与 app 的 google-services.json 是否属于同一个 Firebase 项目";
+    }
+    loadPushStatus();
+  } catch (err) {
+    $("push-msg").textContent = "失败：" + err.message;
+  }
+});

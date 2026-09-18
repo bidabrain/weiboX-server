@@ -5,11 +5,14 @@
 """
 from __future__ import annotations
 
+import os
+
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel
 
 from .. import store
-from ..services import repo, webdav
+from ..config import settings
+from ..services import push, repo, webdav
 from ..services import tokens as token_service
 from ..services.scraper import scraper
 from .auth import SESSION_COOKIE, SESSION_MAX_AGE, create_session, require_session, verify_password
@@ -83,6 +86,44 @@ def create_token(payload: dict = Body(default={})):
 def delete_token(tid: str):
     token_service.delete_token(tid)
     return {"ok": True}
+
+
+# ── 推送（FCM）────────────────────────────────────────────────────
+@router.get("/push/status", dependencies=auth)
+def push_status():
+    """诊断用：私钥是否加载、有哪些设备注册上来了。"""
+    key_path = str(settings.firebase_key_path)
+    return {
+        "enabled": push.enabled(),
+        "key_path": key_path,
+        "key_exists": os.path.exists(key_path),
+        "devices": push.list_devices(),
+    }
+
+
+@router.post("/push/test", dependencies=auth)
+def push_test():
+    """给所有开启了「特别关注通知」的设备发一条测试推送。
+
+    返回里区分四种失败：私钥没加载 / 没有设备注册 / 设备都静音了 /
+    FCM 调用失败，这样 WebUI 能直接指出卡在哪一环，而不是笼统地报「失败」。
+    """
+    if not push.enabled():
+        return {"ok": False, "reason": "disabled", "devices": 0, "sent": 0}
+    registered = len(push.list_devices())
+    # 测试推送走 special 通道，所以要按该通道的实际收件数统计，
+    # 否则在 app 里关掉「特别关注通知」的设备会被算进来、导致误报发送失败
+    targets = push.target_count("special")
+    if targets == 0:
+        reason = "no_devices" if registered == 0 else "all_muted"
+        return {"ok": False, "reason": reason, "devices": 0, "registered": registered, "sent": 0}
+    sent = push.notify_test()
+    return {
+        "ok": sent > 0,
+        "reason": "" if sent > 0 else "send_failed",
+        "devices": targets,
+        "sent": sent,
+    }
 
 
 # ── 设置 ──────────────────────────────────────────────────────────
