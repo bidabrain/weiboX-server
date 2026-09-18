@@ -305,13 +305,13 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
             TextButton(
                 onClick = {
                     context.startActivity(
-                        Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/bidabrain/weiboX"))
+                        Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/bidabrain/weiboX-server"))
                     )
                 },
                 contentPadding = PaddingValues(0.dp)
             ) {
                 Text(
-                    "github.com/bidabrain/weiboX",
+                    "github.com/bidabrain/weiboX-server",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary
                 )

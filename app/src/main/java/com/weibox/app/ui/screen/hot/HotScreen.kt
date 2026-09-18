@@ -63,68 +63,67 @@ fun HotScreen(
                             strokeWidth = 2.dp
                         )
                     }
-                }
+                },
+                below = { SearchEntryBar(onClick = onNavigateToSearch) }
             )
         }
     ) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize()) {
-            SearchEntryBar(onClick = onNavigateToSearch)
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .nestedScroll(pullState.nestedScrollConnection)
-            ) {
-                when {
-                    state.isLoading -> Box(
-                        Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) { CircularProgressIndicator() }
+        Box(
+            Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .nestedScroll(pullState.nestedScrollConnection)
+        ) {
+            when {
+                state.isLoading -> Box(
+                    Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) { CircularProgressIndicator() }
 
-                    state.isEmpty -> Box(
-                        Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("暂无热门内容", style = MaterialTheme.typography.bodyLarge)
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                "server 抓取后会显示在这里",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                            )
-                        }
-                    }
-
-                    else -> LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(state.posts, key = { it.id }) { post ->
-                            PostCard(post = post, onUserClick = onNavigateToProfile, repo = vm.repo)
-                        }
-                        if (state.isLoadingMore) {
-                            item {
-                                Box(
-                                    Modifier.fillMaxWidth().padding(16.dp),
-                                    contentAlignment = Alignment.Center
-                                ) { CircularProgressIndicator(modifier = Modifier.size(24.dp)) }
-                            }
-                        }
+                state.isEmpty -> Box(
+                    Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("暂无热门内容", style = MaterialTheme.typography.bodyLarge)
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "server 抓取后会显示在这里",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
                     }
                 }
 
-                PullToRefreshContainer(
-                    state = pullState,
-                    modifier = Modifier.align(Alignment.TopCenter)
-                )
-
-                state.error?.let {
-                    Snackbar(
-                        modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp)
-                    ) { Text(it) }
+                else -> LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(state.posts, key = { it.id }) { post ->
+                        PostCard(post = post, onUserClick = onNavigateToProfile, repo = vm.repo)
+                    }
+                    if (state.isLoadingMore) {
+                        item {
+                            Box(
+                                Modifier.fillMaxWidth().padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) { CircularProgressIndicator(modifier = Modifier.size(24.dp)) }
+                        }
+                    }
                 }
+            }
+
+            PullToRefreshContainer(
+                state = pullState,
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
+
+            state.error?.let {
+                Snackbar(
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp)
+                ) { Text(it) }
             }
         }
     }

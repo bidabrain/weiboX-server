@@ -20,26 +20,32 @@ fun FollowingScreen(
 ) {
     val users by vm.users.collectAsState()
 
-    Scaffold(topBar = { WeiboTopBar("关注") }) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize()) {
-            SearchEntryBar(onClick = onNavigateToSearch, hint = "搜索并关注新用户")
-            if (users.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("还没有关注任何用户", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+    Scaffold(
+        topBar = {
+            WeiboTopBar(
+                title = "关注",
+                below = {
+                    SearchEntryBar(onClick = onNavigateToSearch, hint = "搜索并关注新用户")
                 }
-            } else {
-                LazyColumn(Modifier.fillMaxSize()) {
-                    items(users, key = { it.id }) { user ->
-                        UserCard(
-                            user = user,
-                            isFollowed = true,
-                            onClick = { onNavigateToProfile(user.id) },
-                            onFollowToggle = { vm.unfollow(user.id) },
-                            isSpecial = user.special,
-                            onSpecialToggle = { vm.toggleSpecial(user) }
-                        )
-                        HorizontalDivider()
-                    }
+            )
+        }
+    ) { padding ->
+        if (users.isEmpty()) {
+            Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("还没有关注任何用户", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+            }
+        } else {
+            LazyColumn(Modifier.padding(padding).fillMaxSize()) {
+                items(users, key = { it.id }) { user ->
+                    UserCard(
+                        user = user,
+                        isFollowed = true,
+                        onClick = { onNavigateToProfile(user.id) },
+                        onFollowToggle = { vm.unfollow(user.id) },
+                        isSpecial = user.special,
+                        onSpecialToggle = { vm.toggleSpecial(user) }
+                    )
+                    HorizontalDivider()
                 }
             }
         }

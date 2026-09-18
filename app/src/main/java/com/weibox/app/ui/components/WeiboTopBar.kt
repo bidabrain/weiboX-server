@@ -12,12 +12,18 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.weibox.app.R
 
+/**
+ * @param below 工具栏下方、分割线上方的附加内容（如搜索入口条）。
+ *   放在顶栏内部而不是内容区，是因为内容区顶部要留给下拉刷新指示器——
+ *   它静止时向上平移一个身位藏在顶栏后面，内容区一旦被别的东西顶下去就会露出来。
+ */
 @Composable
 fun WeiboTopBar(
     title: String,
     navigationIcon: @Composable () -> Unit = {},
     actions: @Composable () -> Unit = {},
-    onTitleClick: (() -> Unit)? = null
+    onTitleClick: (() -> Unit)? = null,
+    below: @Composable () -> Unit = {}
 ) {
     Column {
         Surface(
@@ -67,6 +73,13 @@ fun WeiboTopBar(
                     actions()
                 }
             }
+        }
+
+        Surface(
+            color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            below()
         }
 
         HorizontalDivider(
