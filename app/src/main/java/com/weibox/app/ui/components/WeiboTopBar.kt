@@ -34,47 +34,51 @@ fun WeiboTopBar(
             color = containerColor,
             modifier = Modifier.fillMaxWidth()
         ) {
-            // 处理状态栏高度
-            Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
+            // 必须套 Column：Surface 内部是 Box，直接并列两个子元素会堆叠在一起，
+            // 下面这个状态栏占位 Spacer 就顶不动工具栏，标题会压在系统时间/图标上。
+            Column {
+                // 处理状态栏高度
+                Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
 
-            // 工具栏本体：左文字 | 中间 logo | 右操作
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-            ) {
-                Row(
-                    Modifier.align(Alignment.CenterStart),
-                    verticalAlignment = Alignment.CenterVertically
+                // 工具栏本体：左文字 | 中间 logo | 右操作
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
                 ) {
-                    navigationIcon()
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
+                    Row(
+                        Modifier.align(Alignment.CenterStart),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        navigationIcon()
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier
+                                .padding(start = 16.dp)
+                                .then(
+                                    if (onTitleClick != null) Modifier.clickable { onTitleClick() }
+                                    else Modifier
+                                )
+                        )
+                    }
+
+                    Image(
+                        painter = painterResource(R.drawable.ic_logo),
+                        contentDescription = null,
+                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
                         modifier = Modifier
-                            .padding(start = 16.dp)
-                            .then(
-                                if (onTitleClick != null) Modifier.clickable { onTitleClick() }
-                                else Modifier
-                            )
+                            .align(Alignment.Center)
+                            .size(32.dp)
                     )
-                }
 
-                Image(
-                    painter = painterResource(R.drawable.ic_logo),
-                    contentDescription = null,
-                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .size(32.dp)
-                )
-
-                Row(
-                    Modifier.align(Alignment.CenterEnd),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    actions()
+                    Row(
+                        Modifier.align(Alignment.CenterEnd),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        actions()
+                    }
                 }
             }
         }
