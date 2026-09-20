@@ -1,6 +1,6 @@
 package com.weibox.app.navigation
 
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -10,9 +10,12 @@ import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeChild
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -51,6 +54,10 @@ fun AppNavGraph(
     val currentDest = backStack?.destination
     val showBottomBar = tabs.any { it.route == currentDest?.route }
 
+    // 毛玻璃：内容整体注册为 haze 源，顶栏/底栏作为 hazeChild 取其模糊结果。
+    // Android 12L(API 32) 以下 haze 自动退回半透明遮罩，不会崩。
+    val hazeState = remember { HazeState() }
+
     var homeScrollToTopTrigger by remember { mutableIntStateOf(0) }
     var hotScrollToTopTrigger by remember { mutableIntStateOf(0) }
 
@@ -66,7 +73,8 @@ fun AppNavGraph(
         bottomBar = {
             if (showBottomBar) {
                 NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier.hazeChild(hazeState),
+                    containerColor = Color.Transparent,
                     tonalElevation = 0.dp
                 ) {
                     tabs.forEach { tab ->
@@ -115,23 +123,30 @@ fun AppNavGraph(
             }
         }
     ) { innerPadding ->
+        // 内容不再被底栏挤压，而是铺满、从底栏下面穿过去——否则底栏背后是空的，
+        // 毛玻璃无从模糊。各页把这个高度加到自己列表的 contentPadding 里。
+        val bottomInset = innerPadding.calculateBottomPadding()
         NavHost(
             navController = navController,
             startDestination = Tab.Home.route,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.fillMaxSize()
         ) {
             composable(Tab.Home.route) {
                 HomeScreen(
                     onNavigateToProfile = { uid -> navController.navigate("profile/$uid") },
                     onNavigateToSearch = { navController.navigate(ROUTE_SEARCH) },
-                    scrollToTopTrigger = homeScrollToTopTrigger
+                    scrollToTopTrigger = homeScrollToTopTrigger,
+                    hazeState = hazeState,
+                    bottomInset = bottomInset
                 )
             }
             composable(Tab.Hot.route) {
                 HotScreen(
                     onNavigateToProfile = { uid -> navController.navigate("profile/$uid") },
                     onNavigateToSearch = { navController.navigate(ROUTE_SEARCH) },
-                    scrollToTopTrigger = hotScrollToTopTrigger
+                    scrollToTopTrigger = hotScrollToTopTrigger,
+                    hazeState = hazeState,
+                    bottomInset = bottomInset
                 )
             }
             composable(ROUTE_SEARCH) {
@@ -143,10 +158,14 @@ fun AppNavGraph(
             composable(Tab.Following.route) {
                 FollowingScreen(
                     onNavigateToProfile = { uid -> navController.navigate("profile/$uid") },
-                    onNavigateToSearch = { navController.navigate(ROUTE_SEARCH) }
+                    onNavigateToSearch = { navController.navigate(ROUTE_SEARCH) },
+                    hazeState = hazeState,
+                    bottomInset = bottomInset
                 )
             }
-            composable(Tab.Settings.route) { SettingsScreen() }
+            composable(Tab.Settings.route) {
+                SettingsScreen(hazeState = hazeState, bottomInset = bottomInset)
+            }
             composable(
                 "profile/{userId}",
                 arguments = listOf(navArgument("userId") { type = NavType.StringType })

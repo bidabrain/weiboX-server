@@ -11,8 +11,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import dev.chrisbanes.haze.HazeDefaults
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.haze
+import dev.chrisbanes.haze.hazeChild
 import com.weibox.app.ui.components.PostCard
 import com.weibox.app.ui.components.SearchEntryBar
 import com.weibox.app.ui.components.WeiboTopBar
@@ -22,6 +28,8 @@ import com.weibox.app.ui.components.WeiboTopBar
 fun HotScreen(
     onNavigateToProfile: (String) -> Unit,
     onNavigateToSearch: () -> Unit = {},
+    hazeState: HazeState,
+    bottomInset: Dp = 0.dp,
     scrollToTopTrigger: Int = 0,
     vm: HotViewModel = hiltViewModel()
 ) {
@@ -64,14 +72,16 @@ fun HotScreen(
                         )
                     }
                 },
-                below = { SearchEntryBar(onClick = onNavigateToSearch) }
+                below = { SearchEntryBar(onClick = onNavigateToSearch) },
+                modifier = Modifier.hazeChild(hazeState),
+                containerColor = Color.Transparent
             )
         }
     ) { padding ->
         Box(
             Modifier
-                .padding(padding)
                 .fillMaxSize()
+                .haze(hazeState, HazeDefaults.style(backgroundColor = MaterialTheme.colorScheme.surface))
                 .nestedScroll(pullState.nestedScrollConnection)
         ) {
             when {
@@ -98,7 +108,12 @@ fun HotScreen(
                 else -> LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                    contentPadding = PaddingValues(
+                        start = 12.dp,
+                        end = 12.dp,
+                        top = padding.calculateTopPadding() + 10.dp,
+                        bottom = bottomInset + 10.dp
+                    ),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(state.posts, key = { it.id }) { post ->

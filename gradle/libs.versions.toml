@@ -1,10 +1,12 @@
 [versions]
 agp = "8.2.2"
 kotlin = "1.9.22"
-coreKtx = "1.12.0"
+coreKtx = "1.13.1"   # haze 0.7.3 的传递依赖要求，显式写出避免隐式升级
 lifecycleRuntimeKtx = "2.7.0"
 activityCompose = "1.8.2"
-composeBom = "2024.02.00"
+# 抬到 1.6.8：haze 0.7.3 依赖 compose ui/foundation 1.6.7，
+# 不抬 BOM 会造成 ui 被提升而 material3 留在旧版，Compose 内部版本错位
+composeBom = "2024.06.00"
 navigationCompose = "2.7.7"
 hilt = "2.50"
 hiltNavCompose = "1.1.0"
@@ -12,6 +14,8 @@ room = "2.6.1"
 datastore = "1.0.0"
 okhttp = "4.12.0"
 coil = "2.6.0"
+# haze 0.7.3 是最后一个基于 Kotlin 1.9 的版本；0.9 起跳到 Kotlin 2.0，本工程用不了
+haze = "0.7.3"
 workManager = "2.9.0"
 googleServices = "4.4.2"
 firebaseBom = "33.5.1"
@@ -39,6 +43,7 @@ datastore-preferences = { group = "androidx.datastore", name = "datastore-prefer
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+haze = { group = "dev.chrisbanes.haze", name = "haze", version.ref = "haze" }
 lifecycle-process = { group = "androidx.lifecycle", name = "lifecycle-process", version.ref = "lifecycleRuntimeKtx" }
 work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workManager" }
 hilt-work = { group = "androidx.hilt", name = "hilt-work", version.ref = "hiltNavCompose" }

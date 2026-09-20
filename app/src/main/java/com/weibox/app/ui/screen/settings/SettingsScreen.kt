@@ -19,8 +19,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import dev.chrisbanes.haze.HazeDefaults
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.haze
+import dev.chrisbanes.haze.hazeChild
 import com.weibox.app.R
 import com.weibox.app.data.prefs.FontScale
 import com.weibox.app.data.prefs.ThemeMode
@@ -28,19 +34,34 @@ import com.weibox.app.ui.components.WeiboTopBar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
+fun SettingsScreen(
+    hazeState: HazeState,
+    bottomInset: Dp = 0.dp,
+    vm: SettingsViewModel = hiltViewModel()
+) {
     val state by vm.state.collectAsState()
     var tokenVisible by remember { mutableStateOf(false) }
 
     Scaffold(
-        topBar = { WeiboTopBar("设置") }
+        topBar = {
+            WeiboTopBar(
+                title = "设置",
+                modifier = Modifier.hazeChild(hazeState),
+                containerColor = Color.Transparent
+            )
+        }
     ) { padding ->
         Column(
             Modifier
-                .padding(padding)
                 .fillMaxSize()
+                .haze(hazeState, HazeDefaults.style(backgroundColor = MaterialTheme.colorScheme.surface))
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+                .padding(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = padding.calculateTopPadding() + 16.dp,
+                    bottom = bottomInset + 16.dp
+                ),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
 

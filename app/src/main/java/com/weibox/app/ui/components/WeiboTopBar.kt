@@ -7,6 +7,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -23,11 +24,14 @@ fun WeiboTopBar(
     navigationIcon: @Composable () -> Unit = {},
     actions: @Composable () -> Unit = {},
     onTitleClick: (() -> Unit)? = null,
-    below: @Composable () -> Unit = {}
+    below: @Composable () -> Unit = {},
+    modifier: Modifier = Modifier,
+    // 毛玻璃模式下传 Color.Transparent，背景交给 hazeChild 绘制
+    containerColor: Color = MaterialTheme.colorScheme.surface
 ) {
-    Column {
+    Column(modifier) {
         Surface(
-            color = MaterialTheme.colorScheme.surface,
+            color = containerColor,
             modifier = Modifier.fillMaxWidth()
         ) {
             // 处理状态栏高度
@@ -76,7 +80,7 @@ fun WeiboTopBar(
         }
 
         Surface(
-            color = MaterialTheme.colorScheme.surface,
+            color = containerColor,
             modifier = Modifier.fillMaxWidth()
         ) {
             below()

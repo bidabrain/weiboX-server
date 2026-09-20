@@ -97,6 +97,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
     implementation(libs.coil.compose)
+    implementation(libs.haze)
     implementation("org.jsoup:jsoup:1.18.1")
     implementation(libs.lifecycle.process)
     implementation(libs.work.runtime.ktx)
