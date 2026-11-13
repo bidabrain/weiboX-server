@@ -7,6 +7,7 @@ data class WeiboPost(
     val userAvatar: String,
     val text: String,
     val pics: List<String>,
+    val video: WeiboVideo? = null,
     val createdAt: String,
     val createdAtTimestamp: Long,
     val likesCount: Int,

@@ -58,10 +58,21 @@ def _migrate() -> None:
                 ))
     if "posts" in insp.get_table_names():
         cols = {c["name"] for c in insp.get_columns("posts")}
-        if "is_top" not in cols:
-            with engine.begin() as conn:
+        with engine.begin() as conn:
+            if "is_top" not in cols:
                 conn.execute(text(
                     "ALTER TABLE posts ADD COLUMN is_top BOOLEAN DEFAULT 0 NOT NULL"
+                ))
+            if "video_json" not in cols:
+                conn.execute(text(
+                    "ALTER TABLE posts ADD COLUMN video_json TEXT DEFAULT '' NOT NULL"
+                ))
+    if "hot_posts" in insp.get_table_names():
+        cols = {c["name"] for c in insp.get_columns("hot_posts")}
+        if "video_json" not in cols:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "ALTER TABLE hot_posts ADD COLUMN video_json TEXT DEFAULT '' NOT NULL"
                 ))
     if "device_tokens" in insp.get_table_names():
         cols = {c["name"] for c in insp.get_columns("device_tokens")}

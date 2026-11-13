@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.weibox.app.data.model.WeiboPost
+import com.weibox.app.data.model.WeiboVideo
 import com.weibox.app.data.repository.WeiboRepository
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -45,7 +46,15 @@ fun PostCard(
     var viewerUrls by remember { mutableStateOf<List<String>?>(null) }
     var viewerStart by remember { mutableIntStateOf(0) }
     var showComments by remember { mutableStateOf(false) }
+    var playingVideo by remember { mutableStateOf<WeiboVideo?>(null) }
 
+    if (playingVideo != null && repo != null) {
+        VideoPlayerDialog(
+            video = playingVideo!!,
+            repo = repo,
+            onDismiss = { playingVideo = null }
+        )
+    }
     if (viewerUrls != null) {
         ImageViewerDialog(
             urls = viewerUrls!!,
@@ -125,6 +134,11 @@ fun PostCard(
                 })
             }
 
+            post.video?.let { v ->
+                Spacer(Modifier.height(10.dp))
+                VideoThumb(video = v, onClick = { playingVideo = v })
+            }
+
             post.retweetPost?.let { rt ->
                 Spacer(Modifier.height(10.dp))
                 RetweetCard(
@@ -132,7 +146,8 @@ fun PostCard(
                     onUserClick = onUserClick,
                     onImageClick = { idx ->
                         viewerUrls = rt.pics; viewerStart = idx
-                    }
+                    },
+                    onVideoClick = { playingVideo = it }
                 )
             }
 
@@ -203,7 +218,8 @@ fun UserAvatar(
 private fun RetweetCard(
     post: WeiboPost,
     onUserClick: (String) -> Unit,
-    onImageClick: (Int) -> Unit
+    onImageClick: (Int) -> Unit,
+    onVideoClick: (WeiboVideo) -> Unit
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -238,6 +254,10 @@ private fun RetweetCard(
                     cornerRadius = 8,
                     gap = 3
                 )
+            }
+            post.video?.let { v ->
+                Spacer(Modifier.height(8.dp))
+                VideoThumb(video = v, onClick = { onVideoClick(v) }, cornerRadius = 8)
             }
         }
     }

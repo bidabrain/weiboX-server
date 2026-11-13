@@ -170,6 +170,13 @@ async function loadHot() {
 }
 function postInnerHtml(p, isRetweet) {
   const pics = (p.pics || []).map((u) => `<img src="${esc(img(u))}" loading="lazy"/>`).join("");
+  // 视频走服务端代理：带防盗链头、签名过期时按 mid 自动换新地址
+  const v = p.video;
+  const video = v && v.mid
+    ? `<div class="post-video"><video controls preload="none" playsinline
+         poster="${esc(img(v.cover))}"
+         src="/api/v1/video?mid=${encodeURIComponent(v.mid)}&amp;u=${encodeURIComponent(v.url || "")}"></video></div>`
+    : "";
   const head = isRetweet ? "" :
     `<div class="post-head"><img src="${esc(img(p.user_avatar))}" class="clk" data-uid="${esc(p.user_id)}"/>
      <span class="pname clk" data-uid="${esc(p.user_id)}">${esc(p.user_name)}</span></div>`;
@@ -179,6 +186,7 @@ function postInnerHtml(p, isRetweet) {
      <div class="comments hidden" id="cm-${esc(p.id)}"></div>`;
   return `${head}<div class="post-text">${esc(p.text)}</div>
     ${pics ? `<div class="post-pics">${pics}</div>` : ""}
+    ${video}
     ${p.retweet ? `<div class="post-retweet"><b class="clk" data-uid="${esc(p.retweet.user_id)}">@${esc(p.retweet.user_name)}</b>: ${postInnerHtml(p.retweet, true)}</div>` : ""}
     ${meta}`;
 }

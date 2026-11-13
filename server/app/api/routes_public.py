@@ -6,10 +6,12 @@ WebUI（session cookie）与第三方客户端（Bearer Token）共用这一套�
 """
 from __future__ import annotations
 
-from urllib.parse import urlparse
+import time
+from urllib.parse import parse_qs, urlparse
 
 import httpx
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
+from fastapi.responses import StreamingResponse
 
 from ..services import live, push, repo
 from ..services.scraper import scraper
@@ -215,4 +217,96 @@ async def img_proxy(u: str = Query(...)):
         content=r.content,
         media_type=r.headers.get("content-type", "image/jpeg"),
         headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+# ── 视频代理（防盗链 + 签名过期自动续 + Range 拖动）──────────────────
+# 微博视频地址带 Expires/ssig 签名，几小时后失效；缓存里的帖子很容易拿到过期地址。
+# 这里按所属帖子 mid 重新拉一次详情换新地址，并在内存里记住，避免每次都打微博。
+_VIDEO_URL_CACHE: dict = {}          # mid -> 最近一次拿到的有效地址
+_VIDEO_PASS_HEADERS = ("content-type", "content-length", "content-range", "accept-ranges",
+                       "last-modified", "etag")
+
+
+def _url_expired(url: str, margin: int = 60) -> bool:
+    qs = parse_qs(urlparse(url).query)
+    exp = (qs.get("Expires") or qs.get("expires") or [""])[0]
+    try:
+        return int(exp) < time.time() + margin
+    except ValueError:
+        return False  # 没有过期参数就当它有效，真失效了会按 403 再刷新
+
+
+async def _open_video(url: str, range_header: str):
+    """打开上游视频流，手动跟随并校验每一跳重定向。返回 (client, response)。"""
+    headers = {"User-Agent": _IMG_UA, "Referer": "https://m.weibo.cn/"}
+    if range_header:
+        headers["Range"] = range_header
+    client = httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=15.0), follow_redirects=False)
+    try:
+        current = url
+        for _ in range(4):
+            r = await client.send(client.build_request("GET", current, headers=headers), stream=True)
+            if r.status_code in (301, 302, 303, 307, 308):
+                loc = r.headers.get("location", "")
+                await r.aclose()
+                nxt = str(httpx.URL(current).join(loc)) if loc else ""
+                if not nxt or not _host_allowed(nxt):
+                    raise HTTPException(status_code=400, detail="重定向目标不被允许")
+                current = nxt
+                continue
+            return client, r
+        raise HTTPException(status_code=502, detail="视频重定向次数过多")
+    except BaseException:
+        await client.aclose()
+        raise
+
+
+@router.get("/video")
+async def video_proxy(request: Request, mid: str = Query(...), u: str = Query("")):
+    url = _VIDEO_URL_CACHE.get(mid) or u
+    if url and not _host_allowed(url):
+        raise HTTPException(status_code=400, detail="不允许的视频域名")
+    range_header = request.headers.get("range", "")
+
+    refreshed = False
+    if not url or _url_expired(url):
+        url = await _guard(live.fresh_video_url(mid))
+        refreshed = True
+    for attempt in range(2):
+        if not url or not _host_allowed(url):
+            raise HTTPException(status_code=404, detail="该微博没有可播放的视频")
+        try:
+            client, r = await _open_video(url, range_header)
+        except httpx.HTTPError as e:
+            raise HTTPException(status_code=502, detail=f"视频获取失败：{e}")
+        if r.status_code in (200, 206, 416):  # 416=Range 越界，属正常应答，原样透传
+            if len(_VIDEO_URL_CACHE) > 2000:
+                _VIDEO_URL_CACHE.clear()
+            _VIDEO_URL_CACHE[mid] = url
+            break
+        await r.aclose()
+        await client.aclose()
+        if refreshed or attempt == 1:
+            raise HTTPException(status_code=502, detail=f"视频获取失败 {r.status_code}")
+        # 地址可能已失效（403/404 等），换新地址再试一次
+        _VIDEO_URL_CACHE.pop(mid, None)
+        url = await _guard(live.fresh_video_url(mid))
+        refreshed = True
+
+    async def _body():
+        # 放在生成器 finally 里关：播放器中途断开（拖动/关掉）时也能释放上游连接
+        try:
+            async for chunk in r.aiter_raw():
+                yield chunk
+        finally:
+            await r.aclose()
+            await client.aclose()
+
+    headers = {k: v for k, v in r.headers.items() if k.lower() in _VIDEO_PASS_HEADERS}
+    headers.setdefault("accept-ranges", "bytes")
+    headers["cache-control"] = "private, max-age=3600"
+    return StreamingResponse(
+        _body(), status_code=r.status_code, headers=headers,
+        media_type=r.headers.get("content-type", "video/mp4"),
     )

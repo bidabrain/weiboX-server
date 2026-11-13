@@ -71,6 +71,66 @@ def parse_pics(arr) -> List[str]:
     return pics
 
 
+# 视频地址按清晰度从高到低挑；不同接口/版本字段名不一，都列上
+_VIDEO_URL_KEYS = (
+    "mp4_720p_mp4", "mp4_hd_mp4", "mp4_hd_url", "hevc_mp4_hd",
+    "stream_url_hd", "mp4_sd_url", "stream_url", "mp4_ld_mp4",
+)
+
+
+def _pick_video_url(*sources) -> str:
+    for key in _VIDEO_URL_KEYS:
+        for src in sources:
+            if isinstance(src, dict):
+                url = src.get(key)
+                if isinstance(url, str) and url.startswith("http"):
+                    return url
+    return ""
+
+
+def _video_from_page_info(pi: dict, mid: str) -> Optional[dict]:
+    if not isinstance(pi, dict) or pi.get("type") != "video":
+        return None
+    media = pi.get("media_info") or {}
+    url = _pick_video_url(pi.get("urls"), media)
+    if not url:
+        return None
+    cover = (pi.get("page_pic") or {}).get("url") or ""
+    try:
+        duration = int(float(media.get("duration") or 0))
+    except (TypeError, ValueError):
+        duration = 0
+    return {"mid": mid, "url": url, "cover": cover, "duration": duration}
+
+
+def parse_video(mblog: dict) -> Optional[dict]:
+    """帖子自带的视频 → {mid, url, cover, duration}，没有则 None。
+
+    视频地址带签名、会过期，所以同时记下所属帖子 mid，代理播放时过期可按 mid 重新取。
+    普通视频帖在 page_info（type=video）；图文混排帖在 mix_media_info.items。
+    """
+    mid = str(mblog.get("id", ""))
+    v = _video_from_page_info(mblog.get("page_info"), mid)
+    if v:
+        return v
+    for item in (mblog.get("mix_media_info") or {}).get("items") or []:
+        if item.get("type") == "video":
+            data = item.get("data") or {}
+            v = _video_from_page_info(data, mid) if data.get("type") == "video" else None
+            if not v:
+                media = data.get("media_info") or {}
+                url = _pick_video_url(data.get("urls"), media)
+                if url:
+                    v = {
+                        "mid": mid, "url": url,
+                        "cover": (data.get("page_pic") or {}).get("url") or "",
+                        "duration": _to_int(media.get("duration")),
+                    }
+            if v:
+                return v
+    return None
+
+
 def parse_post(mblog: dict) -> dict:
     user = mblog.get("user") or {}
     retweeted = mblog.get("retweeted_status")
@@ -82,6 +142,7 @@ def parse_post(mblog: dict) -> dict:
         "user_avatar": user.get("avatar_hd") or user.get("profile_image_url") or "",
         "text": strip_html(mblog.get("text", "") or ""),
         "pics": parse_pics(mblog.get("pics")),
+        "video": parse_video(mblog),
         "created_at": created_at,
         "created_at_ts": parse_weibo_time(created_at),
         "likes_count": _to_int(mblog.get("attitudes_count")),

@@ -47,6 +47,7 @@ class Post(Base):
     user_avatar: Mapped[str] = mapped_column(String, default="")
     text: Mapped[str] = mapped_column(Text, default="")
     pics_json: Mapped[str] = mapped_column(Text, default="[]")
+    video_json: Mapped[str] = mapped_column(Text, default="")  # 序列化的视频 {mid,url,cover,duration}
     created_at: Mapped[str] = mapped_column(String, default="")
     created_at_ts: Mapped[int] = mapped_column(Integer, index=True, default=0)
     likes_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -74,6 +75,7 @@ class HotPost(Base):
     user_avatar: Mapped[str] = mapped_column(String, default="")
     text: Mapped[str] = mapped_column(Text, default="")
     pics_json: Mapped[str] = mapped_column(Text, default="[]")
+    video_json: Mapped[str] = mapped_column(Text, default="")  # 序列化的视频 {mid,url,cover,duration}
     created_at: Mapped[str] = mapped_column(String, default="")
     created_at_ts: Mapped[int] = mapped_column(Integer, index=True, default=0)
     likes_count: Mapped[int] = mapped_column(Integer, default=0)

@@ -5,6 +5,7 @@ import androidx.room.PrimaryKey
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import com.weibox.app.data.model.WeiboPost
+import com.weibox.app.data.model.WeiboVideo
 import org.json.JSONArray
 
 class StringListConverter {
@@ -27,6 +28,7 @@ data class PostEntity(
     val userAvatar: String,
     val text: String,
     val pics: List<String>,
+    val videoJson: String = "",
     val createdAt: String,
     val createdAtTimestamp: Long,
     val likesCount: Int,
@@ -38,6 +40,7 @@ data class PostEntity(
     val retweetUserName: String = "",
     val retweetText: String = "",
     val retweetPics: List<String> = emptyList(),
+    val retweetVideoJson: String = "",
     val cachedAt: Long = System.currentTimeMillis()
 ) {
     fun toModel(): WeiboPost {
@@ -49,6 +52,7 @@ data class PostEntity(
                 userAvatar = "",
                 text = retweetText,
                 pics = retweetPics,
+                video = WeiboVideo.fromJsonString(retweetVideoJson),
                 createdAt = "",
                 createdAtTimestamp = 0L,
                 likesCount = 0,
@@ -64,6 +68,7 @@ data class PostEntity(
             userAvatar = userAvatar,
             text = text,
             pics = pics,
+            video = WeiboVideo.fromJsonString(videoJson),
             createdAt = createdAt,
             createdAtTimestamp = createdAtTimestamp,
             likesCount = likesCount,
@@ -83,6 +88,7 @@ fun WeiboPost.toEntity() = PostEntity(
     userAvatar = userAvatar,
     text = text,
     pics = pics,
+    videoJson = video?.toJson() ?: "",
     createdAt = createdAt,
     createdAtTimestamp = createdAtTimestamp,
     likesCount = likesCount,
@@ -93,5 +99,6 @@ fun WeiboPost.toEntity() = PostEntity(
     retweetUserId = retweetPost?.userId ?: "",
     retweetUserName = retweetPost?.userName ?: "",
     retweetText = retweetPost?.text ?: "",
-    retweetPics = retweetPost?.pics ?: emptyList()
+    retweetPics = retweetPost?.pics ?: emptyList(),
+    retweetVideoJson = retweetPost?.video?.toJson() ?: ""
 )

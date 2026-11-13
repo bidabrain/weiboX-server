@@ -49,3 +49,14 @@ async def search(q: str, page: int = 1) -> List[dict]:
         return await client.search_users(q, page)
     finally:
         await client.aclose()
+
+
+async def fresh_video_url(mid: str) -> str:
+    """重新拉取帖子，拿到未过期的视频地址；没有视频返回空串。"""
+    client = await new_client()
+    try:
+        post = await client.get_post(mid)
+    finally:
+        await client.aclose()
+    video = post.get("video") or (post.get("retweet") or {}).get("video")
+    return (video or {}).get("url", "")

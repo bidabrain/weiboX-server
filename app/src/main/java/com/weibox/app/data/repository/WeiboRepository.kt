@@ -24,6 +24,12 @@ class WeiboRepository @Inject constructor(
     private suspend fun api(): ServerApi =
         ServerApi(prefs.serverUrl.first(), prefs.apiToken.first())
 
+    /** 视频播放源：服务端代理地址 + 鉴权头。服务器未配置时抛 ServerException。 */
+    suspend fun videoSource(video: com.weibox.app.data.model.WeiboVideo): Pair<String, Map<String, String>> {
+        val api = api()
+        return api.videoUrl(video) to api.authHeaders
+    }
+
     // ── 关注列表 ──────────────────────────────────────────────────
     fun getFollowedUsers(): Flow<List<WeiboUser>> =
         db.userDao().getAll().map { list -> list.map { it.toModel() } }

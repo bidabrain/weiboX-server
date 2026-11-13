@@ -3,6 +3,7 @@ package com.weibox.app.data.api
 import com.weibox.app.data.model.WeiboComment
 import com.weibox.app.data.model.WeiboPost
 import com.weibox.app.data.model.WeiboUser
+import com.weibox.app.data.model.WeiboVideo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -34,6 +35,15 @@ class ServerApi(baseUrl: String, private val token: String) {
 
     private fun authed(builder: Request.Builder) =
         builder.header("Authorization", "Bearer $token")
+
+    /** 视频经服务端代理播放的地址（播放器需带上 [authHeaders]）。 */
+    fun videoUrl(video: WeiboVideo): String =
+        urlBuilder("/video")
+            .addQueryParameter("mid", video.mid)
+            .addQueryParameter("u", video.url)
+            .build().toString()
+
+    val authHeaders: Map<String, String> get() = mapOf("Authorization" to "Bearer $token")
 
     private fun execute(request: Request): String {
         if (base.isBlank()) throw ServerException("未配置服务器地址")
@@ -195,6 +205,7 @@ class ServerApi(baseUrl: String, private val token: String) {
         userAvatar = o.optString("user_avatar"),
         text = o.optString("text"),
         pics = jsonStrings(o.optJSONArray("pics")),
+        video = WeiboVideo.fromJson(o.optJSONObject("video")),
         createdAt = o.optString("created_at"),
         createdAtTimestamp = o.optLong("created_at_ts"),
         likesCount = o.optInt("likes_count"),

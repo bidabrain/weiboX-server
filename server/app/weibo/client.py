@@ -192,6 +192,15 @@ class WeiboClient:
         data = await self._get_json(url)
         return parser.parse_comments(data, has_cookie=has_cookie)
 
+    async def get_post(self, mid: str) -> dict:
+        """单条微博详情（视频签名地址过期后用它换新地址）。"""
+        data = await self._get_json(f"https://m.weibo.cn/statuses/show?id={mid}")
+        self._check_ok(data)
+        mblog = data.get("data") or {}
+        if not mblog:
+            raise WeiboError("微博不存在或已删除")
+        return parser.parse_post(mblog)
+
     async def search_users(self, query: str, page: int = 1) -> List[dict]:
         if not self.has_cookie:
             return await self._search_users_web(query, page)
